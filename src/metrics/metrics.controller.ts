@@ -1,4 +1,12 @@
 import { Controller, Get, Query, Param, Post, UseGuards } from '@nestjs/common';
+import {
+	ApiTags,
+	ApiOperation,
+	ApiResponse,
+	ApiBearerAuth,
+	ApiParam,
+	ApiQuery,
+} from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -9,6 +17,8 @@ import { ShopifyService } from '../integrations/shopify/shopify.service';
 import { FacebookService } from '../integrations/facebook/facebook.service';
 import { GoogleService } from '../integrations/google/google.service';
 
+@ApiTags('Metrics')
+@ApiBearerAuth('JWT-auth')
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MetricsController {
@@ -21,6 +31,26 @@ export class MetricsController {
 	) {}
 
 	@Get('stores/:storeId/metrics')
+	@ApiOperation({ summary: 'Get metrics for a specific store' })
+	@ApiParam({ name: 'storeId', description: 'Store ID' })
+	@ApiQuery({
+		name: 'range',
+		required: false,
+		enum: ['last7days', 'last30days'],
+		description: 'Predefined date range',
+	})
+	@ApiQuery({
+		name: 'startDate',
+		required: false,
+		description: 'Custom start date (YYYY-MM-DD)',
+	})
+	@ApiQuery({
+		name: 'endDate',
+		required: false,
+		description: 'Custom end date (YYYY-MM-DD)',
+	})
+	@ApiResponse({ status: 200, description: 'Metrics retrieved successfully' })
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
 	async getStoreMetrics(
 		@Param('storeId') storeId: string,
 		@Query('range') range?: string,
@@ -36,12 +66,32 @@ export class MetricsController {
 	}
 
 	@Get('metrics/aggregate')
+	@ApiOperation({ summary: 'Get aggregated metrics across all stores' })
+	@ApiQuery({
+		name: 'range',
+		required: false,
+		enum: ['last7days', 'last30days'],
+		description: 'Date range for aggregation',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Aggregated metrics retrieved successfully',
+	})
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
 	async getAggregate(@Query('range') range?: string) {
 		return this.metricsService.aggregate(range || 'last30days');
 	}
 
 	@Post('metrics/sync/:storeId')
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
+	@ApiOperation({
+		summary:
+			'Manually trigger metrics sync for a store (Admin/Manager only)',
+	})
+	@ApiParam({ name: 'storeId', description: 'Store ID' })
+	@ApiResponse({ status: 200, description: 'Sync initiated successfully' })
+	@ApiResponse({ status: 403, description: 'Forbidden' })
+	@ApiResponse({ status: 404, description: 'Store not found' })
 	async manualSync(@Param('storeId') storeId: string) {
 		const store = await this.storesService.findOne(storeId);
 
