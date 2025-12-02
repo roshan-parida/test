@@ -9,6 +9,14 @@ interface DailyOrdersSummary {
 	soldItems: number;
 }
 
+interface ProductSalesData {
+	productId: string;
+	productName: string;
+	productImage: string;
+	quantitySold: number;
+	revenue: number;
+}
+
 @Injectable()
 export class ShopifyService {
 	private readonly logger = new Logger(ShopifyService.name);
@@ -55,7 +63,16 @@ export class ShopifyService {
 							totalPriceSet { shopMoney { amount } }
 							lineItems(first: 100) {
 								edges {
-									node { quantity }
+									node { 
+										quantity
+										product {
+											id
+											title
+											featuredImage {
+												url
+											}
+										}
+									}
 								}
 							}
 						}
@@ -66,7 +83,7 @@ export class ShopifyService {
 		`;
 	}
 
-	private async sleep(ms: number): Promise<void> {
+	private sleep(ms: number): Promise<void> {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
@@ -143,7 +160,6 @@ export class ShopifyService {
 				);
 			}
 
-			// Rate limiting delay for multi-day requests
 			if (totalDays > 1 && currentDate < to) {
 				await this.sleep(this.DELAY_BETWEEN_DAYS_MS);
 			}
@@ -153,6 +169,83 @@ export class ShopifyService {
 
 		this.logger.log(
 			`✓ Retrieved ${results.length} days of orders for ${store.name}`,
+		);
+
+		return results;
+	}
+
+	async fetchProductSales(
+		store: Store,
+		from?: Date,
+		to?: Date,
+	): Promise<ProductSalesData[]> {
+		let queryString = '';
+		if (from && to) {
+			queryString = `created_at:>='${from.toISOString()}' AND created_at:<='${to.toISOString()}'`;
+		}
+		let cursor: string | null = null;
+		let hasNextPage = true;
+		const productMap = new Map<string, ProductSalesData>();
+
+		const dateRangeLog =
+			from && to
+				? `${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`
+				: 'all-time';
+
+		this.logger.log(
+			`Fetching product sales for ${store.name}: ${dateRangeLog}`,
+		);
+
+		while (hasNextPage) {
+			const data = await this.callShopify(store, this.getOrdersQuery(), {
+				cursor,
+				queryString,
+			});
+
+			const orders = data.orders.edges;
+
+			for (const order of orders) {
+				const orderTotal = parseFloat(
+					order.node.totalPriceSet.shopMoney.amount || '0',
+				);
+				const totalItems = order.node.lineItems.edges.reduce(
+					(sum: number, item: any) => sum + item.node.quantity,
+					0,
+				);
+
+				for (const item of order.node.lineItems.edges) {
+					const product = item.node.product;
+					if (!product) continue;
+
+					const productId = product.id;
+					const quantity = item.node.quantity;
+					const itemRevenue = (quantity / totalItems) * orderTotal;
+
+					if (!productMap.has(productId)) {
+						productMap.set(productId, {
+							productId,
+							productName: product.title,
+							productImage:
+								product.featuredImage?.url ||
+								'https://via.placeholder.com/150',
+							quantitySold: 0,
+							revenue: 0,
+						});
+					}
+
+					const existing = productMap.get(productId)!;
+					existing.quantitySold += quantity;
+					existing.revenue += itemRevenue;
+				}
+			}
+
+			hasNextPage = data.orders.pageInfo.hasNextPage;
+			cursor = hasNextPage ? orders[orders.length - 1].cursor : null;
+		}
+
+		const results = Array.from(productMap.values());
+		this.logger.log(
+			`✓ Retrieved sales data for ${results.length} products from ${store.name}`,
 		);
 
 		return results;
