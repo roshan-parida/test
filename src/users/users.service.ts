@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { User } from './schemas/user.schema';
 import { UserRole } from '../common/enums/user-role.enum';
 
@@ -50,5 +50,55 @@ export class UsersService {
 			.exec();
 		if (!user) throw new NotFoundException('User not found');
 		return user;
+	}
+
+	async assignStores(userId: string, storeIds: string[]): Promise<User> {
+		const user = await this.userModel
+			.findByIdAndUpdate(
+				userId,
+				{
+					$addToSet: {
+						assignedStores: {
+							$each: storeIds.map((id) => new Types.ObjectId(id)),
+						},
+					},
+				},
+				{ new: true },
+			)
+			.exec();
+
+		if (!user) throw new NotFoundException('User not found');
+		return user;
+	}
+
+	async removeStores(userId: string, storeIds: string[]): Promise<User> {
+		const user = await this.userModel
+			.findByIdAndUpdate(
+				userId,
+				{
+					$pull: {
+						assignedStores: {
+							$in: storeIds.map((id) => new Types.ObjectId(id)),
+						},
+					},
+				},
+				{ new: true },
+			)
+			.exec();
+
+		if (!user) throw new NotFoundException('User not found');
+		return user;
+	}
+
+	async getUserStores(userId: string): Promise<string[]> {
+		const user = await this.findById(userId);
+		return (user.assignedStores || []).map((s: any) => s.toString());
+	}
+
+	async getUsersByStore(storeId: string): Promise<any[]> {
+		return this.userModel
+			.find({ assignedStores: new Types.ObjectId(storeId) })
+			.select('-password -__v')
+			.exec();
 	}
 }

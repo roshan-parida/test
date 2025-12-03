@@ -45,12 +45,16 @@ export class FacebookService {
 		to: Date,
 	): Promise<DailyAdSpend[]> {
 		const token = store.fbAdSpendToken;
-		const adAccountId = store.fbAccountId;
+		let adAccountId = store.fbAccountId;
+		if (!adAccountId.startsWith('act_')) {
+			adAccountId = `act_${adAccountId}`;
+		}
 
 		const url = `https://graph.facebook.com/v19.0/${adAccountId}/insights`;
 
 		const params = {
 			access_token: token,
+			level: 'account',
 			fields: 'spend,date_start',
 			time_increment: 1,
 			limit: 500,

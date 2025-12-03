@@ -20,6 +20,7 @@ export class AuthService {
 	private sanitizeUser(user: any) {
 		if (!user) return null;
 		const obj = user.toObject ? user.toObject() : user;
+
 		const { password, __v, ...rest } = obj;
 		return rest;
 	}
@@ -39,7 +40,13 @@ export class AuthService {
 			role,
 		});
 
-		const token = await this.signToken(user.id, user.email, user.role);
+		// include assignedStores in the token
+		const token = await this.signToken(
+			user.id,
+			user.email,
+			user.role,
+			user.assignedStores ?? [],
+		);
 
 		return {
 			user: this.sanitizeUser(user),
@@ -58,7 +65,12 @@ export class AuthService {
 			throw new UnauthorizedException('Invalid credentials');
 		}
 
-		const token = await this.signToken(user.id, user.email, user.role);
+		const token = await this.signToken(
+			user.id,
+			user.email,
+			user.role,
+			user.assignedStores ?? [],
+		);
 
 		return {
 			user: this.sanitizeUser(user),
@@ -75,8 +87,15 @@ export class AuthService {
 		userId: string,
 		email: string,
 		role: UserRole,
+		assignedStores: any[],
 	): Promise<string> {
-		const payload = { sub: userId, email, role };
+		const payload = {
+			sub: userId,
+			email,
+			role,
+			assignedStores: assignedStores.map((id) => id.toString()),
+		};
+
 		return this.jwtService.signAsync(payload);
 	}
 }

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import { UserRole } from '../../common/enums/user-role.enum';
 
 @Schema({ timestamps: true })
@@ -15,6 +15,10 @@ export class User extends Document {
 
 	@Prop({ default: true })
 	isActive: boolean;
+
+	// NEW: Store access control
+	@Prop({ type: [{ type: Types.ObjectId, ref: 'Store' }], default: [] })
+	assignedStores: Types.ObjectId[];
 
 	createdAt: Date;
 	updatedAt: Date;
