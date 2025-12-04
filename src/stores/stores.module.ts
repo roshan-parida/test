@@ -4,12 +4,13 @@ import { Store, StoreSchema } from './schemas/store.schema';
 import { StoresService } from './stores.service';
 import { StoresController } from './stores.controller';
 import { MetricsModule } from '../metrics/metrics.module';
-import { UsersService } from 'src/users/users.service';
+import { UsersModule } from '../users/users.module';
 
 @Module({
 	imports: [
 		MongooseModule.forFeature([{ name: Store.name, schema: StoreSchema }]),
 		forwardRef(() => MetricsModule),
+		forwardRef(() => UsersModule),
 	],
 	providers: [StoresService],
 	controllers: [StoresController],

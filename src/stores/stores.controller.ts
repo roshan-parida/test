@@ -17,6 +17,7 @@ import {
 	ApiParam,
 } from '@nestjs/swagger';
 import { StoresService } from './stores.service';
+import { UsersService } from '../users/users.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,7 +31,10 @@ import { StoreAccessGuard } from '../auth/guards/store-access.guard';
 @Controller('stores')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StoresController {
-	constructor(private readonly storesService: StoresService) {}
+	constructor(
+		private readonly storesService: StoresService,
+		private readonly usersService: UsersService,
+	) {}
 
 	@Get()
 	@UseGuards(StoreAccessGuard)
@@ -52,13 +56,19 @@ export class StoresController {
 	}
 
 	@Post()
-	@Roles(UserRole.ADMIN)
-	@UseGuards(StoreAccessGuard)
-	@ApiOperation({ summary: 'Create a new store (Admin only)' })
+	@Roles(UserRole.ADMIN, UserRole.MANAGER)
+	@ApiOperation({ summary: 'Create a new store (Admin/Manager only)' })
 	@ApiResponse({ status: 201, description: 'Store created successfully' })
 	@ApiResponse({ status: 409, description: 'Store name already exists' })
-	async create(@Body() dto: CreateStoreDto) {
+	async create(@Body() dto: CreateStoreDto, @Req() req: any) {
 		const store = await this.storesService.create(dto);
+
+		if (req.user.role === UserRole.MANAGER) {
+			await this.usersService.assignStores(req.user.userId, [
+				store._id.toString(),
+			]);
+		}
+
 		const obj = store.toObject();
 		return obj;
 	}

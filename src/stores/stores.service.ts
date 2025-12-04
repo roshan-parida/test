@@ -3,6 +3,8 @@ import {
 	NotFoundException,
 	ConflictException,
 	ForbiddenException,
+	Inject,
+	forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -17,6 +19,7 @@ export class StoresService {
 	constructor(
 		@InjectModel(Store.name)
 		private readonly storeModel: Model<Store>,
+		@Inject(forwardRef(() => MetricsService))
 		private readonly metricsService: MetricsService,
 	) {}
 

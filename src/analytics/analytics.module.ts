@@ -7,6 +7,7 @@ import {
 	ProductMetricSchema,
 } from '../analytics/schemas/product-metric.schema';
 import { StoresModule } from '../stores/stores.module';
+import { UsersModule } from '../users/users.module';
 import { ShopifyService } from '../integrations/shopify/shopify.service';
 
 @Module({
@@ -15,6 +16,7 @@ import { ShopifyService } from '../integrations/shopify/shopify.service';
 			{ name: ProductMetric.name, schema: ProductMetricSchema },
 		]),
 		forwardRef(() => StoresModule),
+		forwardRef(() => UsersModule),
 	],
 	providers: [ProductMetricsService, ShopifyService],
 	controllers: [AnalyticsController],
