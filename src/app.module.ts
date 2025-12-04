@@ -10,6 +10,7 @@ import { StoresModule } from './stores/stores.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
 	imports: [
@@ -27,6 +28,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 		MetricsModule,
 		JobsModule,
 		AnalyticsModule,
+		MailModule,
 	],
 	controllers: [AppController],
 	providers: [AppService],
