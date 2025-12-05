@@ -10,7 +10,6 @@ async function bootstrap() {
 		exclude: [{ path: '/', method: RequestMethod.GET }],
 	});
 
-	// ------------------ Swagger ------------------
 	const config = new DocumentBuilder()
 		.setTitle('Ad Matrix Backend API')
 		.setDescription('API documentation for the Ad Matrix Backend')
@@ -22,15 +21,13 @@ async function bootstrap() {
 				bearerFormat: 'JWT',
 				description: 'Enter JWT token from /auth/login',
 			},
-			'JWT-auth', // name for reference
+			'JWT-auth',
 		)
 		.build();
 
 	const document = SwaggerModule.createDocument(app, config);
 	SwaggerModule.setup('api/docs', app, document, {
-		swaggerOptions: {
-			persistAuthorization: true,
-		},
+		swaggerOptions: { persistAuthorization: true },
 	});
 
 	app.enableCors({
@@ -48,8 +45,8 @@ async function bootstrap() {
 	);
 
 	const port = process.env.PORT || 3001;
-	await app.listen(port);
-	// eslint-disable-next-line no-console
-	console.log(`🚀 Backend running on http://localhost:${port}`);
+	await app.listen(port, '0.0.0.0');
+
+	console.log(`🚀 Backend running on port ${port}`);
 }
 bootstrap();
