@@ -18,6 +18,15 @@ interface ProductSalesData {
 	revenue: number;
 }
 
+interface TrafficAnalyticsData {
+	landingPageType: string;
+	landingPagePath: string;
+	onlineStoreVisitors: number;
+	sessions: number;
+	sessionsWithCartAdditions: number;
+	sessionsThatReachedCheckout: number;
+}
+
 @Injectable()
 export class ShopifyService {
 	private readonly logger = new Logger(ShopifyService.name);
@@ -250,5 +259,97 @@ export class ShopifyService {
 		);
 
 		return results;
+	}
+
+	async fetchTrafficAnalytics(
+		store: Store,
+		daysBack: number = 7,
+		limit: number = 10,
+	): Promise<TrafficAnalyticsData[]> {
+		const url = `https://${store.shopifyStoreUrl}/admin/api/2025-10/graphql.json`;
+
+		const shopifyQLQuery = `
+			FROM sessions 
+			SHOW online_store_visitors, sessions, sessions_with_cart_additions, sessions_that_reached_checkout 
+			WHERE landing_page_path IS NOT NULL 
+			AND human_or_bot_session IN ('human', 'bot') 
+			GROUP BY landing_page_type, landing_page_path 
+			WITH TOTALS 
+			SINCE startOfDay(-${daysBack}d) 
+			UNTIL today 
+			ORDER BY sessions DESC 
+			LIMIT ${limit}
+		`;
+
+		const graphqlQuery = {
+			query: `query {
+				shopifyqlQuery(query: "${shopifyQLQuery.replace(/\s+/g, ' ').replace(/"/g, '\\"')}") {
+					tableData {
+						columns { name dataType displayName }
+						rows
+					}
+					parseErrors
+				}
+			}`,
+		};
+
+		try {
+			const response = await axios.post(url, graphqlQuery, {
+				headers: {
+					'X-Shopify-Access-Token': store.shopifyToken,
+					'Content-Type': 'application/json',
+				},
+			});
+
+			if (response.data.errors) {
+				this.logger.error(
+					`Shopify GraphQL Errors: ${JSON.stringify(response.data.errors)}`,
+				);
+				throw new Error('Shopify GraphQL error');
+			}
+
+			const queryData = response.data.data.shopifyqlQuery;
+
+			if (queryData.parseErrors && queryData.parseErrors.length > 0) {
+				this.logger.error(
+					`ShopifyQL Parse Errors: ${JSON.stringify(queryData.parseErrors)}`,
+				);
+				throw new Error('ShopifyQL parse error');
+			}
+
+			const tableData = queryData.tableData;
+			const results: TrafficAnalyticsData[] = [];
+
+			for (const row of tableData.rows) {
+				results.push({
+					landingPageType: row.landing_page_type || 'Unknown',
+					landingPagePath: row.landing_page_path || '/',
+					onlineStoreVisitors: parseInt(
+						row.online_store_visitors || '0',
+						10,
+					),
+					sessions: parseInt(row.sessions || '0', 10),
+					sessionsWithCartAdditions: parseInt(
+						row.sessions_with_cart_additions || '0',
+						10,
+					),
+					sessionsThatReachedCheckout: parseInt(
+						row.sessions_that_reached_checkout || '0',
+						10,
+					),
+				});
+			}
+
+			this.logger.log(
+				`✓ Retrieved traffic analytics for ${results.length} landing pages from ${store.name}`,
+			);
+			return results;
+		} catch (error) {
+			const err = error as AxiosError;
+			this.logger.error(
+				`Shopify Traffic Analytics Error: ${err.message}`,
+			);
+			throw err;
+		}
 	}
 }
