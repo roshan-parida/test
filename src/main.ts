@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+	process.env.TZ = 'Asia/Kolkata';
 	const app = await NestFactory.create(AppModule);
 
 	app.setGlobalPrefix('api', {
