@@ -33,6 +33,5 @@ export class Invitation extends Document {
 
 export const InvitationSchema = SchemaFactory.createForClass(Invitation);
 
-InvitationSchema.index({ token: 1 }, { unique: true });
 InvitationSchema.index({ email: 1, isAccepted: 1 });
-InvitationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 604800 }); // 7 days
+InvitationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 604800 }); // 7 days TTL
