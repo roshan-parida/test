@@ -158,6 +158,7 @@ export class UsersController {
 				dto.storeIds,
 				currentUser.storeName,
 				currentUser.storeUrl,
+				dto.role,
 			);
 
 			// Send invitation email (non-blocking)
@@ -178,6 +179,17 @@ export class UsersController {
 				expiresAt: invitation.expiresAt,
 			};
 		}
+	}
+
+	@Get('me/assigned-viewers')
+	@Roles(UserRole.MANAGER)
+	@ApiOperation({
+		summary: 'Get viewers assigned by the current manager',
+		description:
+			'Returns all viewers who have access to stores managed by the current manager',
+	})
+	async getMyAssignedViewers(@Req() req: any) {
+		return this.usersService.getViewersAssignedByManager(req.user.userId);
 	}
 
 	@Post(':userId/stores')
