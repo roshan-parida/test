@@ -85,8 +85,10 @@ export class UsersController {
 	}
 
 	@Post('invite-viewer')
-	@Roles(UserRole.MANAGER)
-	@ApiOperation({ summary: 'Invite viewer to access stores (Manager only)' })
+	@Roles(UserRole.ADMIN, UserRole.MANAGER)
+	@ApiOperation({
+		summary: 'Invite viewer to access stores (Admin/Manager)',
+	})
 	async inviteViewer(@Body() dto: InviteViewerDto, @Req() req: any) {
 		const manager = await this.usersService.findById(req.user.userId);
 
