@@ -7,6 +7,7 @@ import {
 	UseGuards,
 	Logger,
 	Body,
+	Request,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -31,7 +32,6 @@ import { StoreAccessGuard } from '../auth/guards/store-access.guard';
 @ApiTags('Metrics')
 @ApiBearerAuth('JWT-auth')
 @Controller()
-@UseGuards(JwtAuthGuard, RolesGuard, StoreAccessGuard)
 export class MetricsController {
 	private readonly logger = new Logger(MetricsController.name);
 
@@ -44,6 +44,7 @@ export class MetricsController {
 	) {}
 
 	@Get('stores/:storeId/metrics')
+	@UseGuards(JwtAuthGuard, RolesGuard, StoreAccessGuard)
 	@ApiOperation({ summary: 'Get metrics for a specific store' })
 	@ApiParam({ name: 'storeId', description: 'Store ID' })
 	@ApiQuery({
@@ -85,7 +86,8 @@ export class MetricsController {
 	}
 
 	@Get('metrics/aggregate')
-	@ApiOperation({ summary: 'Get aggregated metrics across all stores' })
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@ApiOperation({ summary: 'Get aggregated metrics across assigned stores' })
 	@ApiQuery({
 		name: 'range',
 		required: false,
@@ -97,11 +99,17 @@ export class MetricsController {
 		description: 'Aggregated metrics retrieved successfully',
 	})
 	@ApiResponse({ status: 401, description: 'Unauthorized' })
-	async getAggregate(@Query('range') range?: string) {
-		return this.metricsService.aggregate(range || 'last30days');
+	async getAggregate(@Request() req: any, @Query('range') range?: string) {
+		const user = req.user;
+		const isAdmin = user.role === UserRole.ADMIN;
+
+		const storeIds = isAdmin ? undefined : user.assignedStores;
+
+		return this.metricsService.aggregate(range || 'last30days', storeIds);
 	}
 
 	@Post('metrics/sync/:storeId/daily')
+	@UseGuards(JwtAuthGuard, RolesGuard, StoreAccessGuard)
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
 	@ApiOperation({
 		summary:
@@ -194,6 +202,7 @@ export class MetricsController {
 	}
 
 	@Post('metrics/sync/:storeId/range')
+	@UseGuards(JwtAuthGuard, RolesGuard, StoreAccessGuard)
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({
 		summary: 'Backfill historical metrics for a date range (Admin only)',

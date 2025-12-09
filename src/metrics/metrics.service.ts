@@ -94,7 +94,10 @@ export class MetricsService {
 		return this.metricModel.find(filter).sort({ date: 1 }).exec();
 	}
 
-	async aggregate(range?: string): Promise<{
+	async aggregate(
+		range?: string,
+		storeIds?: string[],
+	): Promise<{
 		totalStores: number;
 		totalAdSpend: number;
 		totalOrders: number;
@@ -102,6 +105,12 @@ export class MetricsService {
 		dateRange: string;
 	}> {
 		const filter = this.buildDateRangeFilter(range);
+
+		if (storeIds && storeIds.length > 0) {
+			filter.storeId = {
+				$in: storeIds.map((id) => new Types.ObjectId(id)),
+			};
+		}
 
 		const pipeline: any[] = [
 			{ $match: filter },
