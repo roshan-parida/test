@@ -1,5 +1,13 @@
-import { IsEmail, IsArray, IsMongoId } from 'class-validator';
+import {
+	IsEmail,
+	IsArray,
+	IsMongoId,
+	IsNotEmpty,
+	IsString,
+	IsEnum,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { UserRole } from 'src/common/enums/user-role.enum';
 
 export class InviteViewerDto {
 	@ApiProperty({
@@ -17,4 +25,7 @@ export class InviteViewerDto {
 	@IsArray()
 	@IsMongoId({ each: true })
 	storeIds: string[];
+
+	@IsEnum(UserRole, { message: 'Role must be VIEWER' })
+	role: UserRole = UserRole.VIEWER;
 }

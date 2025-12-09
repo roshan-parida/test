@@ -119,7 +119,12 @@ export class UsersService {
 		storeIds: string[],
 		storeName: string,
 		storeUrl: string,
+		role: UserRole,
 	): Promise<Invitation> {
+		if (role !== UserRole.VIEWER) {
+			throw new Error('Only users with the VIEWER role can be invited.');
+		}
+
 		// Delete any existing pending invitations for this email
 		await this.invitationModel.deleteMany({ email, isAccepted: false });
 
@@ -161,5 +166,37 @@ export class UsersService {
 				'Invitation not found or already accepted',
 			);
 		return invitation;
+	}
+
+	async getViewersAssignedByManager(managerId: string): Promise<any[]> {
+		const manager = await this.findById(managerId);
+
+		if (!manager.assignedStores || manager.assignedStores.length === 0) {
+			return [];
+		}
+
+		const managerStoreIds = manager.assignedStores.map((s) => s.toString());
+
+		// Find all viewers who have access to any of the manager's stores
+		const viewers = await this.userModel
+			.find({
+				role: UserRole.VIEWER,
+				assignedStores: {
+					$elemMatch: {
+						$in: manager.assignedStores,
+					},
+				},
+			})
+			.select('-password -__v')
+			.lean()
+			.exec();
+
+		// For each viewer, filter assignedStores to only show stores the manager manages
+		return viewers.map((viewer) => ({
+			...viewer,
+			assignedStores: viewer.assignedStores
+				.map((s: any) => s.toString())
+				.filter((storeId: string) => managerStoreIds.includes(storeId)),
+		}));
 	}
 }
