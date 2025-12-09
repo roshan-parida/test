@@ -90,19 +90,28 @@ export class UsersController {
 		summary: 'Invite viewer to access stores (Admin/Manager)',
 	})
 	async inviteViewer(@Body() dto: InviteViewerDto, @Req() req: any) {
-		const manager = await this.usersService.findById(req.user.userId);
+		const currentUser = await this.usersService.findById(req.user.userId);
 
-		// Verify manager has access to all stores they're trying to assign
-		const managerStores = manager.assignedStores.map((s) => s.toString());
-		const unauthorized = dto.storeIds.some(
-			(id) => !managerStores.includes(id),
-		);
-
-		if (unauthorized) {
-			throw new ForbiddenException(
-				'You can only assign stores you manage',
+		// Admins can assign any stores, Managers can only assign stores they manage
+		if (req.user.role === UserRole.MANAGER) {
+			const managerStores = currentUser.assignedStores.map((s) =>
+				s.toString(),
 			);
+			const unauthorized = dto.storeIds.some(
+				(id) => !managerStores.includes(id),
+			);
+
+			if (unauthorized) {
+				throw new ForbiddenException(
+					'You can only assign stores you manage',
+				);
+			}
 		}
+
+		// Verify all store IDs exist (for both Admin and Manager)
+		await Promise.all(
+			dto.storeIds.map((id) => this.storesService.findOne(id)),
+		);
 
 		// Check if viewer already exists
 		const existingViewer = await this.usersService.findByEmail(dto.email);
@@ -125,7 +134,7 @@ export class UsersController {
 				.sendStoreAssignmentNotification(
 					dto.email,
 					existingViewer.name,
-					manager.name,
+					currentUser.name,
 					storeNames,
 				)
 				.catch((err) =>
@@ -145,18 +154,18 @@ export class UsersController {
 			// New user - create invitation
 			const invitation = await this.usersService.createInvitation(
 				dto.email,
-				manager._id.toString(),
+				currentUser._id.toString(),
 				dto.storeIds,
-				manager.storeName,
-				manager.storeUrl,
+				currentUser.storeName,
+				currentUser.storeUrl,
 			);
 
 			// Send invitation email (non-blocking)
 			this.mailService
 				.sendViewerInvitation(
 					dto.email,
-					manager.name,
-					manager.storeName,
+					currentUser.name,
+					currentUser.storeName,
 					invitation.token,
 				)
 				.catch((err) =>
