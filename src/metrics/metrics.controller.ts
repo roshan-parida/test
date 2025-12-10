@@ -91,7 +91,13 @@ export class MetricsController {
 	@ApiQuery({
 		name: 'range',
 		required: false,
-		enum: ['last7days', 'last30days'],
+		enum: [
+			'last7days',
+			'last14days',
+			'last30days',
+			'last60days',
+			'last90days',
+		],
 		description: 'Date range for aggregation',
 	})
 	@ApiResponse({
@@ -103,7 +109,21 @@ export class MetricsController {
 		const user = req.user;
 		const isAdmin = user.role === UserRole.ADMIN;
 
-		const storeIds = isAdmin ? undefined : user.assignedStores;
+		const storeIds = isAdmin
+			? undefined
+			: user.assignedStores && user.assignedStores.length > 0
+				? user.assignedStores
+				: null;
+
+		if (storeIds === null) {
+			return {
+				totalStores: 0,
+				totalAdSpend: 0,
+				totalOrders: 0,
+				totalRevenue: 0,
+				dateRange: range || 'last30days',
+			};
+		}
 
 		return this.metricsService.aggregate(range || 'last30days', storeIds);
 	}
