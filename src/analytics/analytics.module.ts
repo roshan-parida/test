@@ -14,6 +14,7 @@ import {
 import { StoresModule } from '../stores/stores.module';
 import { UsersModule } from '../users/users.module';
 import { ShopifyService } from '../integrations/shopify/shopify.service';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
 	imports: [
@@ -23,6 +24,7 @@ import { ShopifyService } from '../integrations/shopify/shopify.service';
 		]),
 		forwardRef(() => StoresModule),
 		forwardRef(() => UsersModule),
+		AuditModule,
 	],
 	providers: [ProductMetricsService, TrafficMetricsService, ShopifyService],
 	controllers: [AnalyticsController],

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { Store } from '../../stores/schemas/store.schema';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction, AuditStatus } from '../../audit/schemas/audit-log.schema';
 
 interface DailyOrdersSummary {
 	date: string;
@@ -31,6 +33,8 @@ interface TrafficAnalyticsData {
 export class ShopifyService {
 	private readonly logger = new Logger(ShopifyService.name);
 	private readonly DELAY_BETWEEN_DAYS_MS = 100;
+
+	constructor(private readonly auditService: AuditService) {}
 
 	private async callShopify(store: Store, query: string, variables: any) {
 		const url = `https://${store.shopifyStoreUrl}/admin/api/2024-01/graphql.json`;
@@ -103,86 +107,119 @@ export class ShopifyService {
 		from: Date,
 		to: Date,
 	): Promise<DailyOrdersSummary[]> {
-		const results: DailyOrdersSummary[] = [];
-		const currentDate = new Date(from);
-		let dayCount = 0;
-
-		const totalDays =
-			Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) +
-			1;
-
-		this.logger.log(
-			`Fetching Shopify orders for ${store.name}: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)} (${totalDays} days)`,
-		);
-
-		while (currentDate <= to) {
-			const dayStart = new Date(currentDate);
-			dayStart.setHours(0, 0, 0, 0);
-
-			const dayEnd = new Date(currentDate);
-			dayEnd.setHours(23, 59, 59, 999);
-
-			const queryString = `created_at:>='${dayStart.toISOString()}' AND created_at:<='${dayEnd.toISOString()}'`;
-
-			let cursor: string | null = null;
-			let hasNextPage = true;
-			let soldOrders = 0;
-			let orderValue = 0;
-			let soldItems = 0;
-
-			while (hasNextPage) {
-				const data = await this.callShopify(
-					store,
-					this.getOrdersQuery(),
-					{
-						cursor,
-						queryString,
-					},
-				);
-
-				const orders = data.orders.edges;
-
-				for (const order of orders) {
-					soldOrders++;
-					orderValue += parseFloat(
-						order.node.totalPriceSet.shopMoney.amount || '0',
-					);
-
-					for (const item of order.node.lineItems.edges) {
-						soldItems += item.node.quantity;
-					}
-				}
-
-				hasNextPage = data.orders.pageInfo.hasNextPage;
-				cursor = hasNextPage ? orders[orders.length - 1].cursor : null;
-			}
-
-			results.push({
-				date: currentDate.toISOString().slice(0, 10),
-				soldOrders,
-				orderValue,
-				soldItems,
+		try {
+			const startTime = Date.now();
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_STARTED,
+				status: AuditStatus.PENDING,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				metadata: { from: from.toISOString(), to: to.toISOString() },
 			});
 
-			dayCount++;
-			if (dayCount % 10 === 0) {
-				this.logger.log(
-					`Progress: ${dayCount}/${totalDays} days processed for ${store.name}`,
-				);
+			const results: DailyOrdersSummary[] = [];
+			const currentDate = new Date(from);
+			let dayCount = 0;
+
+			const totalDays =
+				Math.ceil(
+					(to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24),
+				) + 1;
+
+			this.logger.log(
+				`Fetching Shopify orders for ${store.name}: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)} (${totalDays} days)`,
+			);
+
+			while (currentDate <= to) {
+				const dayStart = new Date(currentDate);
+				dayStart.setHours(0, 0, 0, 0);
+
+				const dayEnd = new Date(currentDate);
+				dayEnd.setHours(23, 59, 59, 999);
+
+				const queryString = `created_at:>='${dayStart.toISOString()}' AND created_at:<='${dayEnd.toISOString()}'`;
+
+				let cursor: string | null = null;
+				let hasNextPage = true;
+				let soldOrders = 0;
+				let orderValue = 0;
+				let soldItems = 0;
+
+				while (hasNextPage) {
+					const data = await this.callShopify(
+						store,
+						this.getOrdersQuery(),
+						{
+							cursor,
+							queryString,
+						},
+					);
+
+					const orders = data.orders.edges;
+
+					for (const order of orders) {
+						soldOrders++;
+						orderValue += parseFloat(
+							order.node.totalPriceSet.shopMoney.amount || '0',
+						);
+
+						for (const item of order.node.lineItems.edges) {
+							soldItems += item.node.quantity;
+						}
+					}
+
+					hasNextPage = data.orders.pageInfo.hasNextPage;
+					cursor = hasNextPage
+						? orders[orders.length - 1].cursor
+						: null;
+				}
+
+				results.push({
+					date: currentDate.toISOString().slice(0, 10),
+					soldOrders,
+					orderValue,
+					soldItems,
+				});
+
+				dayCount++;
+				if (dayCount % 10 === 0) {
+					this.logger.log(
+						`Progress: ${dayCount}/${totalDays} days processed for ${store.name}`,
+					);
+				}
+
+				if (totalDays > 1 && currentDate < to) {
+					await this.sleep(this.DELAY_BETWEEN_DAYS_MS);
+				}
+
+				currentDate.setDate(currentDate.getDate() + 1);
 			}
 
-			if (totalDays > 1 && currentDate < to) {
-				await this.sleep(this.DELAY_BETWEEN_DAYS_MS);
-			}
+			this.logger.log(
+				`✓ Retrieved ${results.length} days of orders for ${store.name}`,
+			);
 
-			currentDate.setDate(currentDate.getDate() + 1);
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_ORDERS_FETCHED,
+				status: AuditStatus.SUCCESS,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				duration: Date.now() - startTime,
+				metadata: { daysProcessed: results.length, totalDays },
+			});
+
+			return results;
+		} catch (error) {
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_FAILED,
+				status: AuditStatus.FAILURE,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				errorMessage: (error as any).message,
+				errorDetails: error,
+			});
+			throw error;
 		}
-
-		this.logger.log(
-			`✓ Retrieved ${results.length} days of orders for ${store.name}`,
-		);
-
-		return results;
 	}
 
 	async fetchProductSales(

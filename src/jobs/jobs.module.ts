@@ -8,12 +8,14 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { ShopifyService } from '../integrations/shopify/shopify.service';
 import { FacebookService } from '../integrations/facebook/facebook.service';
 import { GoogleService } from '../integrations/google/google.service';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
 	imports: [
 		forwardRef(() => StoresModule),
 		forwardRef(() => MetricsModule),
 		forwardRef(() => AnalyticsModule),
+		AuditModule,
 	],
 	providers: [
 		SyncMetricsJob,

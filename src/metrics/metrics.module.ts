@@ -7,6 +7,7 @@ import { StoresModule } from '../stores/stores.module';
 import { ShopifyService } from '../integrations/shopify/shopify.service';
 import { FacebookService } from '../integrations/facebook/facebook.service';
 import { GoogleService } from '../integrations/google/google.service';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
 	imports: [
@@ -14,6 +15,7 @@ import { GoogleService } from '../integrations/google/google.service';
 			{ name: StoreMetric.name, schema: StoreMetricSchema },
 		]),
 		forwardRef(() => StoresModule),
+		AuditModule,
 	],
 	providers: [MetricsService, ShopifyService, FacebookService, GoogleService],
 	controllers: [MetricsController],

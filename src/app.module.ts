@@ -12,6 +12,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
 import { FacebookAnalyticsModule } from './integrations/facebook/facebook-analytics.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
 	imports: [
@@ -31,6 +32,7 @@ import { FacebookAnalyticsModule } from './integrations/facebook/facebook-analyt
 		AnalyticsModule,
 		MailModule,
 		FacebookAnalyticsModule,
+		AuditModule,
 	],
 	controllers: [AppController],
 	providers: [AppService],

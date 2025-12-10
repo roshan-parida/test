@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { Store } from '../../stores/schemas/store.schema';
 import { ConfigService } from '@nestjs/config';
+import { AuditService } from '../../audit/audit.service';
+import { AuditAction, AuditStatus } from '../../audit/schemas/audit-log.schema';
 
 interface DailyAdSpend {
 	date: string;
@@ -61,7 +63,10 @@ export class FacebookService {
 	private readonly API_VERSION = 'v19.0';
 	private readonly BASE_URL = `https://graph.facebook.com/${this.API_VERSION}`;
 
-	constructor(private readonly config: ConfigService) {}
+	constructor(
+		private readonly config: ConfigService,
+		private readonly auditService: AuditService,
+	) {}
 
 	private async callFacebook(
 		url: string,
