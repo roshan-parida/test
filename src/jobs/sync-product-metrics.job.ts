@@ -22,17 +22,19 @@ export class SyncProductMetricsJob {
 
 		for (const store of stores) {
 			try {
-				this.logger.debug(
-					`Processing product metrics for: ${store.name}`,
+				const now = new Date();
+				const to = new Date(
+					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
 				);
-
-				// Sync last 30 days of product data
-				const to = new Date();
 				to.setHours(23, 59, 59, 999);
 
-				const from = new Date();
+				const from = new Date(to);
 				from.setDate(from.getDate() - 30);
 				from.setHours(0, 0, 0, 0);
+
+				this.logger.log(
+					`Syncing products for ${store.name}: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`,
+				);
 
 				// Reset existing data before fresh sync
 				await this.productMetricsService.resetStoreProducts(

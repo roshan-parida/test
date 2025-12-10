@@ -24,16 +24,19 @@ export class SyncTrafficMetricsJob {
 
 		for (const store of stores) {
 			try {
-				this.logger.debug(
-					`Processing traffic metrics for: ${store.name}`,
+				const now = new Date();
+				const endDate = new Date(
+					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
 				);
+				endDate.setHours(23, 59, 59, 999);
 
-				const startDate = new Date();
+				const startDate = new Date(endDate);
 				startDate.setDate(startDate.getDate() - daysBack);
 				startDate.setHours(0, 0, 0, 0);
 
-				const endDate = new Date();
-				endDate.setHours(23, 59, 59, 999);
+				this.logger.log(
+					`Processing traffic metrics for: ${store.name} from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`,
+				);
 
 				// Reset existing data for this date range
 				await this.trafficMetricsService.resetStoreTraffic(
@@ -91,16 +94,19 @@ export class SyncTrafficMetricsJob {
 
 		for (const store of stores) {
 			try {
-				this.logger.debug(
-					`Processing extended traffic metrics for: ${store.name}`,
+				const now = new Date();
+				const endDate = new Date(
+					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
 				);
+				endDate.setHours(23, 59, 59, 999);
 
-				const startDate = new Date();
+				const startDate = new Date(endDate);
 				startDate.setDate(startDate.getDate() - daysBack);
 				startDate.setHours(0, 0, 0, 0);
 
-				const endDate = new Date();
-				endDate.setHours(23, 59, 59, 999);
+				this.logger.log(
+					`Processing extended traffic metrics for: ${store.name} from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`,
+				);
 
 				// Reset existing data for this date range
 				await this.trafficMetricsService.resetStoreTraffic(
