@@ -298,11 +298,18 @@ export class AuthService {
 			storeIds,
 		);
 
+		// Send welcome email to viewer asynchronously (non-blocking)
+		this.mailService
+			.sendViewerWelcomeEmail(user.email, user.name, jwtToken)
+			.catch((err) => {
+				console.error('Failed to send viewer welcome email:', err);
+			});
+
 		return {
 			user: this.sanitizeUser(user),
 			token: jwtToken,
 			message:
-				'Account created successfully! You can now access your assigned stores.',
+				'Account created successfully! You can now access your assigned stores. Check your email for login link.',
 		};
 	}
 }

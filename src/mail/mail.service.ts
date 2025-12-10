@@ -96,6 +96,42 @@ export class MailService {
 		}
 	}
 
+	async sendViewerWelcomeEmail(
+		email: string,
+		name: string,
+		autoLoginToken: string,
+	): Promise<void> {
+		if (!this.transporter) {
+			this.logger.warn(
+				'Mail transporter not initialized. Skipping email.',
+			);
+			return;
+		}
+
+		const subject = 'Welcome to Ad Matrix! 🎉';
+		const html = this.generateViewerWelcomeEmailTemplate(
+			name,
+			autoLoginToken,
+		);
+
+		try {
+			await this.transporter.sendMail({
+				to: email,
+				subject,
+				html,
+			});
+			this.logger.log(
+				`Viewer welcome email sent successfully to ${email}`,
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to send viewer welcome email to ${email}:`,
+				error,
+			);
+			throw error;
+		}
+	}
+
 	async sendViewerInvitation(
 		email: string,
 		inviterName: string,
@@ -455,6 +491,198 @@ export class MailService {
                                 <li style="margin-bottom: 10px;">Connect your store integrations (Shopify, Facebook, Google)</li>
                                 <li style="margin-bottom: 10px;">Start tracking your metrics and insights</li>
                             </ol>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <p>Questions? We're here to help!</p>
+                        <p>Email us at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a></p>
+                        <p style="margin-top: 15px; font-size: 12px; color: #999;">
+                            This login link will expire in 24 hours for security reasons.
+                        </p>
+                        <p>&copy; ${new Date().getFullYear()} Ad Matrix. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+		`;
+	}
+
+	private generateViewerWelcomeEmailTemplate(
+		name: string,
+		autoLoginToken: string,
+	): string {
+		const frontendUrl =
+			this.configService.get<string>('FRONTEND_URL') || '';
+		const autoLoginUrl = `${frontendUrl}/auth/auto-login?token=${encodeURIComponent(autoLoginToken)}`;
+
+		return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        background-color: #f4f4f4;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .container {
+                        max-width: 600px;
+                        margin: 40px auto;
+                        background-color: #ffffff;
+                        border-radius: 8px;
+                        overflow: hidden;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    }
+                    .header {
+                        background: #10b981;
+                        padding: 40px 30px;
+                        text-align: center;
+                        color: #ffffff;
+                    }
+                    .header h1 {
+                        margin: 0 0 10px 0;
+                        font-size: 32px;
+                        font-weight: 600;
+                    }
+                    .header p {
+                        margin: 0;
+                        font-size: 16px;
+                        opacity: 0.9;
+                    }
+                    .content {
+                        padding: 40px 30px;
+                    }
+                    .greeting {
+                        font-size: 20px;
+                        color: #333333;
+                        margin-bottom: 20px;
+                        font-weight: 600;
+                    }
+                    .message {
+                        font-size: 16px;
+                        color: #555555;
+                        line-height: 1.8;
+                        margin-bottom: 25px;
+                    }
+                    .feature-list {
+                        background-color: #f0fdf4;
+                        border-radius: 8px;
+                        padding: 25px;
+                        margin: 30px 0;
+                    }
+                    .feature-item {
+                        display: flex;
+                        align-items: flex-start;
+                        margin-bottom: 15px;
+                    }
+                    .feature-item:last-child {
+                        margin-bottom: 0;
+                    }
+                    .feature-icon {
+                        font-size: 24px;
+                        margin-right: 15px;
+                        flex-shrink: 0;
+                    }
+                    .feature-text {
+                        font-size: 15px;
+                        color: #444444;
+                        line-height: 1.5;
+                    }
+                    .feature-text strong {
+                        color: #10b981;
+                    }
+                    .cta-button {
+                        display: inline-block;
+                        background: #10b981;
+                        color: #ffffff !important;
+                        text-decoration: none;
+                        padding: 15px 40px;
+                        border-radius: 6px;
+                        font-weight: 600;
+                        font-size: 16px;
+                        margin: 20px 0;
+                    }
+                    .cta-button:hover {
+                        opacity: 0.9;
+                    }
+                    .auto-login-note {
+                        background-color: #dbeafe;
+                        border-left: 4px solid #10b981;
+                        padding: 15px;
+                        margin: 20px 0;
+                        font-size: 14px;
+                        color: #065f46;
+                    }
+                    .footer {
+                        background-color: #f8f9fa;
+                        padding: 20px 30px;
+                        text-align: center;
+                        font-size: 14px;
+                        color: #666666;
+                        border-top: 1px solid #e0e0e0;
+                    }
+                    .footer a {
+                        color: #10b981;
+                        text-decoration: none;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Welcome to Ad Matrix!</h1>
+                        <p>Your viewer account is ready</p>
+                    </div>
+                    <div class="content">
+                        <div class="greeting">Hello ${name}!</div>
+                        <div class="message">
+                            Welcome aboard! Your Ad Matrix viewer account has been successfully created. You now have access to view analytics and performance metrics for your assigned stores.
+                        </div>
+                        <div class="auto-login-note">
+                            🚀 <strong>Quick Start:</strong> Click the button below to access your dashboard instantly — no need to log in!
+                        </div>
+                        <center>
+                            <a href="${autoLoginUrl}" class="cta-button">Access Your Dashboard</a>
+                        </center>
+                        <div class="feature-list">
+                            <div class="feature-item">
+                                <div class="feature-icon">📊</div>
+                                <div class="feature-text">
+                                    <strong>Store Analytics:</strong> View real-time orders, revenue, and items sold
+                                </div>
+                            </div>
+                            <div class="feature-item">
+                                <div class="feature-icon">💰</div>
+                                <div class="feature-text">
+                                    <strong>Ad Spend Insights:</strong> Track Facebook and Google advertising expenditure
+                                </div>
+                            </div>
+                            <div class="feature-item">
+                                <div class="feature-icon">🏆</div>
+                                <div class="feature-text">
+                                    <strong>Top Products:</strong> Discover best-performing products by revenue and quantity
+                                </div>
+                            </div>
+                            <div class="feature-item">
+                                <div class="feature-icon">📈</div>
+                                <div class="feature-text">
+                                    <strong>Traffic Metrics:</strong> Analyze landing page performance and conversion rates
+                                </div>
+                            </div>
+                        </div>
+                        <div class="message">
+                            <strong>Getting Started:</strong>
+                            <ol style="padding-left: 20px; margin-top: 15px;">
+                                <li style="margin-bottom: 10px;">Click the button above to access your dashboard</li>
+                                <li style="margin-bottom: 10px;">Explore the analytics for your assigned stores</li>
+                                <li style="margin-bottom: 10px;">Review performance metrics and insights</li>
+                            </ol>
+                        </div>
+                        <div class="message">
+                            <strong>Note:</strong> As a viewer, you have read-only access to store analytics. If you need additional permissions or have questions, please contact your store manager.
                         </div>
                     </div>
                     <div class="footer">
