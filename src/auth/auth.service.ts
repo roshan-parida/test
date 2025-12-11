@@ -3,6 +3,7 @@ import {
 	UnauthorizedException,
 	ConflictException,
 	BadRequestException,
+	NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
@@ -17,6 +18,10 @@ import { ResendOtpDto } from './dto/resend-otp.dto';
 import { UserRole } from '../common/enums/user-role.enum';
 import { PendingUser } from './schemas/pending-user.schema';
 import { AcceptInvitationDto } from '../users/dto/accept-invitation.dto';
+import { PasswordReset } from './schemas/password-reset.schema';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction, AuditStatus } from '../audit/schemas/audit-log.schema';
 
@@ -29,6 +34,8 @@ export class AuthService {
 		@InjectModel(PendingUser.name)
 		private readonly pendingUserModel: Model<PendingUser>,
 		private readonly auditService: AuditService,
+		@InjectModel(PasswordReset.name)
+		private readonly passwordResetModel: Model<PasswordReset>,
 	) {}
 
 	private sanitizeUser(user: any) {
@@ -273,6 +280,148 @@ export class AuthService {
 		};
 
 		return this.jwtService.signAsync(payload);
+	}
+
+	async forgotPassword(dto: ForgotPasswordDto) {
+		// Check if user exists
+		const user = await this.usersService.findByEmail(dto.email);
+		if (!user) {
+			throw new NotFoundException('No account found with this email');
+		}
+
+		// Check if user is active
+		if (!user.isActive) {
+			throw new UnauthorizedException('Account is inactive');
+		}
+
+		// Generate OTP
+		const otp = this.generateOtp();
+		const otpExpiresAt = new Date();
+		otpExpiresAt.setMinutes(otpExpiresAt.getMinutes() + 10); // 10 minutes
+
+		// Delete any existing password reset requests for this email
+		await this.passwordResetModel.deleteMany({
+			email: dto.email,
+			isUsed: false,
+		});
+
+		// Create new password reset request
+		await this.passwordResetModel.create({
+			email: dto.email,
+			otp,
+			otpExpiresAt,
+			isUsed: false,
+		});
+
+		// Send OTP email asynchronously (non-blocking)
+		this.mailService
+			.sendPasswordResetOtpEmail(dto.email, otp, user.name)
+			.catch((err) => {
+				console.error('Failed to send password reset OTP email:', err);
+			});
+
+		return {
+			message: 'Password reset OTP sent to your email',
+			email: dto.email,
+			expiresIn: '10 minutes',
+		};
+	}
+
+	async resetPassword(dto: ResetPasswordDto) {
+		const resetRequest = await this.passwordResetModel
+			.findOne({
+				email: dto.email,
+				otp: dto.otp,
+				isUsed: false,
+			})
+			.exec();
+
+		if (!resetRequest) {
+			throw new BadRequestException('Invalid or expired OTP');
+		}
+
+		// Check if OTP is expired
+		if (new Date() > resetRequest.otpExpiresAt) {
+			throw new BadRequestException(
+				'OTP has expired. Please request a new one.',
+			);
+		}
+
+		const user = await this.usersService.findByEmail(dto.email);
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+
+		// Update user password
+		user.password = hashedPassword;
+		await user.save();
+
+		// Mark OTP as used
+		resetRequest.isUsed = true;
+		await resetRequest.save();
+
+		// Send confirmation email asynchronously (non-blocking)
+		this.mailService
+			.sendPasswordResetConfirmationEmail(dto.email, user.name)
+			.catch((err) => {
+				console.error(
+					'Failed to send password reset confirmation:',
+					err,
+				);
+			});
+
+		return {
+			message:
+				'Password reset successfully. You can now login with your new password.',
+		};
+	}
+
+	async changePassword(userId: string, dto: ChangePasswordDto) {
+		const user = await this.usersService.findById(userId);
+		if (!user) {
+			throw new NotFoundException('User not found');
+		}
+
+		const isPasswordValid = await bcrypt.compare(
+			dto.currentPassword,
+			user.password,
+		);
+		if (!isPasswordValid) {
+			throw new UnauthorizedException('Current password is incorrect');
+		}
+
+		// Check if new password is same as current password
+		const isSamePassword = await bcrypt.compare(
+			dto.newPassword,
+			user.password,
+		);
+		if (isSamePassword) {
+			throw new BadRequestException(
+				'New password must be different from current password',
+			);
+		}
+
+		const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+
+		// Update user password
+		user.password = hashedPassword;
+		await user.save();
+
+		// Send confirmation email asynchronously (non-blocking)
+		this.mailService
+			.sendPasswordChangeConfirmationEmail(user.email, user.name)
+			.catch((err) => {
+				console.error(
+					'Failed to send password change confirmation:',
+					err,
+				);
+			});
+
+		return {
+			message: 'Password changed successfully',
+		};
 	}
 
 	async getInvitationDetails(token: string) {

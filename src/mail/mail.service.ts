@@ -196,6 +196,97 @@ export class MailService {
 		}
 	}
 
+	async sendPasswordResetOtpEmail(
+		email: string,
+		otp: string,
+		name: string,
+	): Promise<void> {
+		if (!this.transporter) {
+			this.logger.error(
+				'Mail transporter not initialized - check env vars',
+			);
+			return;
+		}
+
+		const subject = 'Reset Your Password - Ad Matrix';
+		const html = this.generatePasswordResetOtpTemplate(name, otp);
+
+		try {
+			await this.transporter.sendMail({
+				to: email,
+				subject,
+				html,
+			});
+			this.logger.log(`✓ Password reset OTP sent to ${email}`);
+		} catch (error) {
+			this.logger.error(
+				`✗ Failed to send password reset OTP to ${email}:`,
+				error,
+			);
+			throw error;
+		}
+	}
+
+	async sendPasswordResetConfirmationEmail(
+		email: string,
+		name: string,
+	): Promise<void> {
+		if (!this.transporter) {
+			this.logger.warn(
+				'Mail transporter not initialized. Skipping email.',
+			);
+			return;
+		}
+
+		const subject = 'Password Changed Successfully - Ad Matrix';
+		const html = this.generatePasswordResetConfirmationTemplate(name);
+
+		try {
+			await this.transporter.sendMail({
+				to: email,
+				subject,
+				html,
+			});
+			this.logger.log(`✓ Password reset confirmation sent to ${email}`);
+		} catch (error) {
+			this.logger.error(
+				`✗ Failed to send password reset confirmation to ${email}:`,
+				error,
+			);
+			throw error;
+		}
+	}
+
+	async sendPasswordChangeConfirmationEmail(
+		email: string,
+		name: string,
+	): Promise<void> {
+		if (!this.transporter) {
+			this.logger.warn(
+				'Mail transporter not initialized. Skipping email.',
+			);
+			return;
+		}
+
+		const subject = 'Password Changed - Ad Matrix';
+		const html = this.generatePasswordChangeConfirmationTemplate(name);
+
+		try {
+			await this.transporter.sendMail({
+				to: email,
+				subject,
+				html,
+			});
+			this.logger.log(`✓ Password change confirmation sent to ${email}`);
+		} catch (error) {
+			this.logger.error(
+				`✗ Failed to send password change confirmation to ${email}:`,
+				error,
+			);
+			throw error;
+		}
+	}
+
 	private generateOtpEmailTemplate(name: string, otp: string): string {
 		return `
             <!DOCTYPE html>
@@ -833,5 +924,206 @@ export class MailService {
             </body>
             </html>
 		`;
+	}
+
+	private generatePasswordResetOtpTemplate(
+		name: string,
+		otp: string,
+	): string {
+		return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                    .header { background: #dc2626; padding: 30px; text-align: center; color: #ffffff; }
+                    .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
+                    .content { padding: 40px 30px; }
+                    .greeting { font-size: 18px; color: #333333; margin-bottom: 20px; }
+                    .message { font-size: 16px; color: #555555; line-height: 1.6; margin-bottom: 30px; }
+                    .otp-box { background-color: #fef2f2; border: 2px dashed #dc2626; border-radius: 8px; padding: 25px; text-align: center; margin: 30px 0; }
+                    .otp-label { font-size: 14px; color: #666666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+                    .otp-code { font-size: 36px; font-weight: bold; color: #dc2626; letter-spacing: 8px; font-family: 'Courier New', monospace; }
+                    .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; font-size: 14px; color: #856404; }
+                    .security-notice { background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; font-size: 14px; color: #1e40af; }
+                    .footer { background-color: #f8f9fa; padding: 20px 30px; text-align: center; font-size: 14px; color: #666666; border-top: 1px solid #e0e0e0; }
+                    .footer a { color: #667eea; text-decoration: none; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🔒 Password Reset Request</h1>
+                    </div>
+                    <div class="content">
+                        <div class="greeting">Hi ${name},</div>
+                        <div class="message">
+                            We received a request to reset your password for your Ad Matrix account. Use the verification code below to proceed with resetting your password:
+                        </div>
+                        <div class="otp-box">
+                            <div class="otp-label">Your Reset Code</div>
+                            <div class="otp-code">${otp}</div>
+                        </div>
+                        <div class="warning">
+                            ⚠️ <strong>Important:</strong> This code will expire in 10 minutes. If you didn't request a password reset, please ignore this email and your password will remain unchanged.
+                        </div>
+                        <div class="security-notice">
+                            🛡️ <strong>Security Tip:</strong> Never share this code with anyone. Ad Matrix staff will never ask for your verification code.
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <p>If you're having trouble, contact us at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a></p>
+                        <p>&copy; ${new Date().getFullYear()} Ad Matrix. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+	    `;
+	}
+
+	private generatePasswordResetConfirmationTemplate(name: string): string {
+		const frontendUrl =
+			this.configService.get<string>('FRONTEND_URL') || '';
+		const loginUrl = `${frontendUrl}/auth/login`;
+
+		return `
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<style>
+				body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+				.container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+				.header { background: #10b981; padding: 40px 30px; text-align: center; color: #ffffff; }
+				.header h1 { margin: 0 0 10px 0; font-size: 32px; font-weight: 600; }
+				.header p { margin: 0; font-size: 16px; opacity: 0.9; }
+				.content { padding: 40px 30px; }
+				.greeting { font-size: 20px; color: #333333; margin-bottom: 20px; font-weight: 600; }
+				.message { font-size: 16px; color: #555555; line-height: 1.8; margin-bottom: 25px; }
+				.success-box { background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 4px; }
+				.success-box strong { color: #10b981; }
+				.cta-button { display: inline-block; background: #10b981; color: #ffffff !important; text-decoration: none; padding: 15px 40px; border-radius: 6px; font-weight: 600; font-size: 16px; margin: 20px 0; }
+				.security-notice { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; font-size: 14px; color: #856404; }
+				.footer { background-color: #f8f9fa; padding: 20px 30px; text-align: center; font-size: 14px; color: #666666; border-top: 1px solid #e0e0e0; }
+				.footer a { color: #667eea; text-decoration: none; }
+			</style>
+		</head>
+		<body>
+			<div class="container">
+				<div class="header">
+					<h1>✓ Password Changed!</h1>
+					<p>Your password has been successfully updated</p>
+				</div>
+				<div class="content">
+					<div class="greeting">Hi ${name},</div>
+					<div class="message">
+						Your password has been successfully changed. You can now log in to your Ad Matrix account using your new password.
+					</div>
+					<div class="success-box">
+						<strong>✓ Password Updated:</strong> Your account is secure with your new password.
+					</div>
+					<center>
+						<a href="${loginUrl}" class="cta-button">Login to Your Account</a>
+					</center>
+					<div class="security-notice">
+						⚠️ <strong>Security Alert:</strong> If you did not make this change, please contact our support team immediately at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a>
+					</div>
+					<div class="message">
+						<strong>Security Best Practices:</strong>
+						<ul style="padding-left: 20px; margin-top: 15px;">
+							<li style="margin-bottom: 10px;">Use a strong, unique password</li>
+							<li style="margin-bottom: 10px;">Don't share your password with anyone</li>
+							<li style="margin-bottom: 10px;">Enable two-factor authentication when available</li>
+							<li>Log out from shared devices</li>
+						</ul>
+					</div>
+				</div>
+				<div class="footer">
+					<p>Questions? Contact us at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a></p>
+					<p>&copy; ${new Date().getFullYear()} Ad Matrix. All rights reserved.</p>
+				</div>
+			</div>
+		</body>
+		</html>
+	`;
+	}
+
+	private generatePasswordChangeConfirmationTemplate(name: string): string {
+		const frontendUrl =
+			this.configService.get<string>('FRONTEND_URL') || '';
+
+		return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                    .header { background: #10b981; padding: 40px 30px; text-align: center; color: #ffffff; }
+                    .header h1 { margin: 0 0 10px 0; font-size: 32px; font-weight: 600; }
+                    .header p { margin: 0; font-size: 16px; opacity: 0.9; }
+                    .content { padding: 40px 30px; }
+                    .greeting { font-size: 20px; color: #333333; margin-bottom: 20px; font-weight: 600; }
+                    .message { font-size: 16px; color: #555555; line-height: 1.8; margin-bottom: 25px; }
+                    .info-box { background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 20px; margin: 25px 0; border-radius: 4px; }
+                    .info-box .timestamp { font-size: 14px; color: #666; margin-top: 10px; }
+                    .security-notice { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; font-size: 14px; color: #856404; }
+                    .footer { background-color: #f8f9fa; padding: 20px 30px; text-align: center; font-size: 14px; color: #666666; border-top: 1px solid #e0e0e0; }
+                    .footer a { color: #667eea; text-decoration: none; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✓ Password Changed</h1>
+                        <p>Your account password has been updated</p>
+                    </div>
+                    <div class="content">
+                        <div class="greeting">Hi ${name},</div>
+                        <div class="message">
+                            This is a confirmation that your password for your Ad Matrix account was successfully changed.
+                        </div>
+                        <div class="info-box">
+                            <strong>✓ Password Updated</strong>
+                            <div class="timestamp">Changed on: ${new Date().toLocaleString(
+								'en-US',
+								{
+									weekday: 'long',
+									year: 'numeric',
+									month: 'long',
+									day: 'numeric',
+									hour: '2-digit',
+									minute: '2-digit',
+									timeZoneName: 'short',
+								},
+							)}</div>
+                        </div>
+                        <div class="security-notice">
+                            ⚠️ <strong>Security Alert:</strong> If you did not make this change, your account may have been compromised. Please contact our support team immediately at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a>
+                        </div>
+                        <div class="message">
+                            <strong>Security Recommendations:</strong>
+                            <ul style="padding-left: 20px; margin-top: 15px;">
+                                <li style="margin-bottom: 10px;">Use a strong, unique password for your account</li>
+                                <li style="margin-bottom: 10px;">Never share your password with anyone</li>
+                                <li style="margin-bottom: 10px;">Update your password regularly</li>
+                                <li>Always log out from shared or public devices</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <p>Questions or concerns? Contact us at <a href="mailto:ashutosh@codetocouture.com">ashutosh@codetocouture.com</a></p>
+                        <p>&copy; ${new Date().getFullYear()} Ad Matrix. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+	    `;
 	}
 }
