@@ -8,6 +8,10 @@ import { UsersModule } from '../users/users.module';
 import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PendingUser, PendingUserSchema } from './schemas/pending-user.schema';
+import {
+	PasswordReset,
+	PasswordResetSchema,
+} from './schemas/password-reset.schema';
 import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
@@ -18,6 +22,7 @@ import { AuditModule } from 'src/audit/audit.module';
 		AuditModule,
 		MongooseModule.forFeature([
 			{ name: PendingUser.name, schema: PendingUserSchema },
+			{ name: PasswordReset.name, schema: PasswordResetSchema },
 		]),
 		JwtModule.registerAsync({
 			inject: [ConfigService],

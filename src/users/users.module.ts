@@ -6,6 +6,7 @@ import { User, UserSchema } from './schemas/user.schema';
 import { Invitation, InvitationSchema } from './schemas/invitation.schema';
 import { StoresModule } from '../stores/stores.module';
 import { MailModule } from '../mail/mail.module';
+import { AuditModule } from 'src/audit/audit.module';
 
 @Module({
 	imports: [
@@ -15,6 +16,7 @@ import { MailModule } from '../mail/mail.module';
 		]),
 		StoresModule,
 		MailModule,
+		AuditModule,
 	],
 	providers: [UsersService],
 	controllers: [UsersController],

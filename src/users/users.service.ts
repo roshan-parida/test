@@ -5,6 +5,8 @@ import * as crypto from 'crypto';
 import { User } from './schemas/user.schema';
 import { Invitation } from './schemas/invitation.schema';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction, AuditStatus } from 'src/audit/schemas/audit-log.schema';
 
 interface CreateUserInput {
 	name: string;
@@ -22,6 +24,7 @@ export class UsersService {
 		private readonly userModel: Model<User>,
 		@InjectModel(Invitation.name)
 		private readonly invitationModel: Model<Invitation>,
+		private readonly auditService: AuditService,
 	) {}
 
 	async create(data: CreateUserInput): Promise<User> {
@@ -52,6 +55,15 @@ export class UsersService {
 			.findByIdAndUpdate(id, { role }, { new: true })
 			.exec();
 		if (!user) throw new NotFoundException('User not found');
+
+		await this.auditService.log({
+			action: AuditAction.USER_ROLE_UPDATED,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				userId: id,
+				role: role,
+			},
+		});
 		return user;
 	}
 
@@ -60,6 +72,17 @@ export class UsersService {
 			.findByIdAndUpdate(id, { isActive }, { new: true })
 			.exec();
 		if (!user) throw new NotFoundException('User not found');
+
+		await this.auditService.log({
+			action: isActive
+				? AuditAction.USER_ACTIVATED
+				: AuditAction.USER_DEACTIVATED,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				userId: id,
+				status: isActive,
+			},
+		});
 		return user;
 	}
 
@@ -79,6 +102,15 @@ export class UsersService {
 			.exec();
 
 		if (!user) throw new NotFoundException('User not found');
+
+		await this.auditService.log({
+			action: AuditAction.STORES_ASSIGNED,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				userId: userId,
+				storeIds: storeIds.map((id) => new Types.ObjectId(id)),
+			},
+		});
 		return user;
 	}
 
@@ -98,6 +130,15 @@ export class UsersService {
 			.exec();
 
 		if (!user) throw new NotFoundException('User not found');
+
+		await this.auditService.log({
+			action: AuditAction.STORES_REMOVED,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				userId: userId,
+				storeIds: storeIds.map((id) => new Types.ObjectId(id)),
+			},
+		});
 		return user;
 	}
 
@@ -140,6 +181,16 @@ export class UsersService {
 			storeUrl,
 			token,
 			expiresAt,
+		});
+
+		await this.auditService.log({
+			action: AuditAction.INVITATION_SENT,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				email: email,
+				invitedBy: invitedBy,
+				storeIds: storeIds.map((id) => new Types.ObjectId(id)),
+			},
 		});
 
 		return invitation.save();

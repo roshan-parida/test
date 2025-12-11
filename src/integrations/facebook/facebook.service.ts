@@ -98,47 +98,76 @@ export class FacebookService {
 		from: Date,
 		to: Date,
 	): Promise<DailyAdSpend[]> {
-		const token = store.fbAdSpendToken;
-		let adAccountId = store.fbAccountId;
-		if (!adAccountId.startsWith('act_')) {
-			adAccountId = `act_${adAccountId}`;
+		try {
+			const startTime = Date.now();
+			await this.auditService.log({
+				action: AuditAction.FACEBOOK_SYNC_STARTED,
+				status: AuditStatus.PENDING,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				metadata: { from: from.toISOString(), to: to.toISOString() },
+			});
+
+			const token = store.fbAdSpendToken;
+			let adAccountId = store.fbAccountId;
+			if (!adAccountId.startsWith('act_')) {
+				adAccountId = `act_${adAccountId}`;
+			}
+
+			const url = `${this.BASE_URL}/${adAccountId}/insights`;
+
+			const params = {
+				access_token: token,
+				level: 'account',
+				fields: 'spend,date_start',
+				time_increment: 1,
+				limit: 500,
+				time_range: JSON.stringify({
+					since: from.toISOString().slice(0, 10),
+					until: to.toISOString().slice(0, 10),
+				}),
+			};
+
+			this.logger.log(
+				`Fetching FB ad spend for ${store.name}: ${params.time_range}`,
+			);
+
+			const data = await this.callFacebook(url, params);
+
+			if (!data || !data.data || data.data.length === 0) {
+				this.logger.warn(`No ad spend data returned for ${store.name}`);
+				return [];
+			}
+
+			const dailySpend: DailyAdSpend[] = data.data.map((row: any) => ({
+				date: row.date_start,
+				spend: parseFloat(row.spend || '0'),
+			}));
+
+			this.logger.log(
+				`✓ Retrieved ${dailySpend.length} days of ad spend for ${store.name}`,
+			);
+			await this.auditService.log({
+				action: AuditAction.FACEBOOK_AD_SPEND_FETCHED,
+				status: AuditStatus.SUCCESS,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				duration: Date.now() - startTime,
+				metadata: { daysProcessed: dailySpend.length },
+			});
+
+			return dailySpend;
+		} catch (error) {
+			await this.auditService.log({
+				action: AuditAction.FACEBOOK_SYNC_FAILED,
+				status: AuditStatus.FAILURE,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				errorMessage: (error as any).message,
+				errorDetails: error,
+			});
+			throw error;
 		}
-
-		const url = `${this.BASE_URL}/${adAccountId}/insights`;
-
-		const params = {
-			access_token: token,
-			level: 'account',
-			fields: 'spend,date_start',
-			time_increment: 1,
-			limit: 500,
-			time_range: JSON.stringify({
-				since: from.toISOString().slice(0, 10),
-				until: to.toISOString().slice(0, 10),
-			}),
-		};
-
-		this.logger.log(
-			`Fetching FB ad spend for ${store.name}: ${params.time_range}`,
-		);
-
-		const data = await this.callFacebook(url, params);
-
-		if (!data || !data.data || data.data.length === 0) {
-			this.logger.warn(`No ad spend data returned for ${store.name}`);
-			return [];
-		}
-
-		const dailySpend: DailyAdSpend[] = data.data.map((row: any) => ({
-			date: row.date_start,
-			spend: parseFloat(row.spend || '0'),
-		}));
-
-		this.logger.log(
-			`✓ Retrieved ${dailySpend.length} days of ad spend for ${store.name}`,
-		);
-
-		return dailySpend;
 	}
 
 	private async callFacebookBatch(
@@ -329,66 +358,116 @@ export class FacebookService {
 		entityId?: string,
 		limit: number = 500,
 	): Promise<InsightMetrics[] | BreakdownMetrics[]> {
-		const token = store.fbAdSpendToken;
-		const adAccountId = this.normalizeAccountId(store.fbAccountId);
+		try {
+			const startTime = Date.now();
+			await this.auditService.log({
+				action: AuditAction.FACEBOOK_SYNC_STARTED,
+				status: AuditStatus.PENDING,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				metadata: {
+					from: from.toISOString(),
+					to: to.toISOString(),
+					level,
+					breakdown: breakdown || 'none',
+					entityId: entityId || 'none',
+					limit,
+				},
+			});
 
-		// Determine the URL based on level and entityId
-		let url: string;
-		if (entityId) {
-			url = `${this.BASE_URL}/${entityId}/insights`;
-		} else if (level === 'account') {
-			url = `${this.BASE_URL}/${adAccountId}/insights`;
-		} else {
-			url = `${this.BASE_URL}/${adAccountId}/insights`;
-		}
+			const token = store.fbAdSpendToken;
+			const adAccountId = this.normalizeAccountId(store.fbAccountId);
 
-		const params: any = {
-			access_token: token,
-			level: entityId ? undefined : level,
-			fields: this.getMetricFields(),
-			time_range: JSON.stringify({
-				since: from.toISOString().slice(0, 10),
-				until: to.toISOString().slice(0, 10),
-			}),
-			limit,
-		};
-
-		if (breakdown) {
-			params.breakdowns = breakdown;
-		}
-
-		this.logger.log(
-			`Fetching ${level} insights for ${store.name}${breakdown ? ` with breakdown: ${breakdown}` : ''}`,
-		);
-
-		const data = await this.callFacebook(url, params);
-
-		if (!data || !data.data || data.data.length === 0) {
-			this.logger.warn(
-				`No ${level} insights data found for ${store.name}`,
-			);
-			return [];
-		}
-
-		// Handle pagination if needed
-		let allData = [...data.data];
-		let nextPage = data.paging?.next;
-
-		while (nextPage && allData.length < limit) {
-			const nextData = await axios.get(nextPage);
-			if (nextData.data?.data) {
-				allData = [...allData, ...nextData.data.data];
-				nextPage = nextData.data.paging?.next;
+			// Determine the URL based on level and entityId
+			let url: string;
+			if (entityId) {
+				url = `${this.BASE_URL}/${entityId}/insights`;
+			} else if (level === 'account') {
+				url = `${this.BASE_URL}/${adAccountId}/insights`;
 			} else {
-				break;
+				url = `${this.BASE_URL}/${adAccountId}/insights`;
 			}
-		}
 
-		// Process based on whether it's a breakdown or regular insight
-		if (breakdown) {
-			return this.processBreakdownInsights(allData, breakdown);
-		} else {
-			return this.processRegularInsights(allData, level);
+			const params: any = {
+				access_token: token,
+				level: entityId ? undefined : level,
+				fields: this.getMetricFields(),
+				time_range: JSON.stringify({
+					since: from.toISOString().slice(0, 10),
+					until: to.toISOString().slice(0, 10),
+				}),
+				limit,
+			};
+
+			if (breakdown) {
+				params.breakdowns = breakdown;
+			}
+
+			this.logger.log(
+				`Fetching ${level} insights for ${store.name}${breakdown ? ` with breakdown: ${breakdown}` : ''}`,
+			);
+
+			const data = await this.callFacebook(url, params);
+
+			if (!data || !data.data || data.data.length === 0) {
+				this.logger.warn(
+					`No ${level} insights data found for ${store.name}`,
+				);
+				return [];
+			}
+
+			// Handle pagination if needed
+			let allData = [...data.data];
+			let nextPage = data.paging?.next;
+
+			while (nextPage && allData.length < limit) {
+				const nextData = await axios.get(nextPage);
+				if (nextData.data?.data) {
+					allData = [...allData, ...nextData.data.data];
+					nextPage = nextData.data.paging?.next;
+				} else {
+					break;
+				}
+			}
+
+			// Process based on whether it's a breakdown or regular insight
+			if (breakdown) {
+				await this.auditService.log({
+					action: AuditAction.FACEBOOK_INSIGHTS_FETCHED,
+					status: AuditStatus.SUCCESS,
+					storeId: store._id.toString(),
+					storeName: store.name,
+					duration: Date.now() - startTime,
+					metadata: {
+						recordsProcessed: allData.length,
+						breakdown,
+					},
+				});
+				return this.processBreakdownInsights(allData, breakdown);
+			} else {
+				await this.auditService.log({
+					action: AuditAction.FACEBOOK_INSIGHTS_FETCHED,
+					status: AuditStatus.SUCCESS,
+					storeId: store._id.toString(),
+					storeName: store.name,
+					duration: Date.now() - startTime,
+					metadata: {
+						recordsProcessed: allData.length,
+						level,
+					},
+				});
+				return this.processRegularInsights(allData, level);
+			}
+		} catch (error) {
+			await this.auditService.log({
+				action: AuditAction.FACEBOOK_SYNC_FAILED,
+				status: AuditStatus.FAILURE,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				errorMessage: (error as any).message,
+				errorDetails: error,
+			});
+			throw error;
 		}
 	}
 

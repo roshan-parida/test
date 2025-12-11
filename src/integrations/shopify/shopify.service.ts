@@ -227,75 +227,115 @@ export class ShopifyService {
 		from?: Date,
 		to?: Date,
 	): Promise<ProductSalesData[]> {
-		let queryString = '';
-		if (from && to) {
-			queryString = `created_at:>='${from.toISOString()}' AND created_at:<='${to.toISOString()}'`;
-		}
-		let cursor: string | null = null;
-		let hasNextPage = true;
-		const productMap = new Map<string, ProductSalesData>();
-
-		const dateRangeLog =
-			from && to
-				? `${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`
-				: 'all-time';
-
-		this.logger.log(
-			`Fetching product sales for ${store.name}: ${dateRangeLog}`,
-		);
-
-		while (hasNextPage) {
-			const data = await this.callShopify(store, this.getOrdersQuery(), {
-				cursor,
-				queryString,
+		try {
+			const startTime = Date.now();
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_STARTED,
+				status: AuditStatus.PENDING,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				metadata: {
+					from: from ? from.toISOString() : '',
+					to: to ? to.toISOString() : '',
+				},
 			});
 
-			const orders = data.orders.edges;
+			let queryString = '';
+			if (from && to) {
+				queryString = `created_at:>='${from.toISOString()}' AND created_at:<='${to.toISOString()}'`;
+			}
+			let cursor: string | null = null;
+			let hasNextPage = true;
+			const productMap = new Map<string, ProductSalesData>();
 
-			for (const order of orders) {
-				const orderTotal = parseFloat(
-					order.node.totalPriceSet.shopMoney.amount || '0',
+			const dateRangeLog =
+				from && to
+					? `${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`
+					: 'all-time';
+
+			this.logger.log(
+				`Fetching product sales for ${store.name}: ${dateRangeLog}`,
+			);
+
+			while (hasNextPage) {
+				const data = await this.callShopify(
+					store,
+					this.getOrdersQuery(),
+					{
+						cursor,
+						queryString,
+					},
 				);
-				const totalItems = order.node.lineItems.edges.reduce(
-					(sum: number, item: any) => sum + item.node.quantity,
-					0,
-				);
 
-				for (const item of order.node.lineItems.edges) {
-					const product = item.node.product;
-					if (!product) continue;
+				const orders = data.orders.edges;
 
-					const productId = product.id;
-					const quantity = item.node.quantity;
-					const itemRevenue = (quantity / totalItems) * orderTotal;
+				for (const order of orders) {
+					const orderTotal = parseFloat(
+						order.node.totalPriceSet.shopMoney.amount || '0',
+					);
+					const totalItems = order.node.lineItems.edges.reduce(
+						(sum: number, item: any) => sum + item.node.quantity,
+						0,
+					);
 
-					if (!productMap.has(productId)) {
-						productMap.set(productId, {
-							productId,
-							productName: product.title,
-							productImage: product.featuredImage?.url || '',
-							productUrl: product.onlineStoreUrl || '',
-							quantitySold: 0,
-							revenue: 0,
-						});
+					for (const item of order.node.lineItems.edges) {
+						const product = item.node.product;
+						if (!product) continue;
+
+						const productId = product.id;
+						const quantity = item.node.quantity;
+						const itemRevenue =
+							(quantity / totalItems) * orderTotal;
+
+						if (!productMap.has(productId)) {
+							productMap.set(productId, {
+								productId,
+								productName: product.title,
+								productImage: product.featuredImage?.url || '',
+								productUrl: product.onlineStoreUrl || '',
+								quantitySold: 0,
+								revenue: 0,
+							});
+						}
+
+						const existing = productMap.get(productId)!;
+						existing.quantitySold += quantity;
+						existing.revenue += itemRevenue;
 					}
-
-					const existing = productMap.get(productId)!;
-					existing.quantitySold += quantity;
-					existing.revenue += itemRevenue;
 				}
+
+				hasNextPage = data.orders.pageInfo.hasNextPage;
+				cursor = hasNextPage ? orders[orders.length - 1].cursor : null;
 			}
 
-			hasNextPage = data.orders.pageInfo.hasNextPage;
-			cursor = hasNextPage ? orders[orders.length - 1].cursor : null;
+			const results = Array.from(productMap.values());
+			this.logger.log(
+				`✓ Retrieved sales data for ${results.length} products from ${store.name}`,
+			);
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_PRODUCTS_SYNCED,
+				status: AuditStatus.SUCCESS,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				duration: Date.now() - startTime,
+				metadata: {
+					daysProcessed: results.length,
+					dateRangeLog: dateRangeLog,
+				},
+			});
+
+			return results;
+		} catch (error) {
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_FAILED,
+				status: AuditStatus.FAILURE,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				errorMessage: (error as any).message,
+				errorDetails: error,
+			});
+			throw error;
 		}
-
-		const results = Array.from(productMap.values());
-		this.logger.log(
-			`✓ Retrieved sales data for ${results.length} products from ${store.name}`,
-		);
-
-		return results;
 	}
 
 	async fetchTrafficAnalytics(
@@ -331,6 +371,15 @@ export class ShopifyService {
 		};
 
 		try {
+			const startTime = Date.now();
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_STARTED,
+				status: AuditStatus.PENDING,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				metadata: { daysBack: daysBack, limit: limit },
+			});
+
 			const response = await axios.post(url, graphqlQuery, {
 				headers: {
 					'X-Shopify-Access-Token': store.shopifyToken,
@@ -380,12 +429,34 @@ export class ShopifyService {
 			this.logger.log(
 				`✓ Retrieved traffic analytics for ${results.length} landing pages from ${store.name}`,
 			);
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_TRAFFIC_SYNCED,
+				status: AuditStatus.SUCCESS,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				duration: Date.now() - startTime,
+				metadata: {
+					daysProcessed: results.length,
+					daysBack: daysBack,
+					limit: limit,
+				},
+			});
+
 			return results;
 		} catch (error) {
 			const err = error as AxiosError;
 			this.logger.error(
 				`Shopify Traffic Analytics Error: ${err.message}`,
 			);
+
+			await this.auditService.log({
+				action: AuditAction.SHOPIFY_SYNC_FAILED,
+				status: AuditStatus.FAILURE,
+				storeId: store._id.toString(),
+				storeName: store.name,
+				errorMessage: (err as any).message,
+				errorDetails: err,
+			});
 			throw err;
 		}
 	}

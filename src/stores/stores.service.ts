@@ -13,6 +13,8 @@ import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { MetricsService } from '../metrics/metrics.service';
 import { UserRole } from '../common/enums/user-role.enum';
+import { AuditService } from 'src/audit/audit.service';
+import { AuditAction, AuditStatus } from 'src/audit/schemas/audit-log.schema';
 
 @Injectable()
 export class StoresService {
@@ -21,10 +23,17 @@ export class StoresService {
 		private readonly storeModel: Model<Store>,
 		@Inject(forwardRef(() => MetricsService))
 		private readonly metricsService: MetricsService,
+		private readonly auditService: AuditService,
 	) {}
 
 	async create(dto: CreateStoreDto): Promise<Store> {
 		const store = new this.storeModel(dto);
+
+		await this.auditService.log({
+			action: AuditAction.STORE_CREATED,
+			status: AuditStatus.SUCCESS,
+			metadata: { storeName: dto.name },
+		});
 		return store.save();
 	}
 
@@ -82,6 +91,15 @@ export class StoresService {
 		user: any,
 	): Promise<Store> {
 		if (user.role === UserRole.ADMIN || user.role === 'ADMIN') {
+			await this.auditService.log({
+				action: AuditAction.STORE_UPDATED,
+				status: AuditStatus.SUCCESS,
+				metadata: {
+					storeId: id,
+					updates: dto,
+					by: [user._id, user.name],
+				},
+			});
 			return this.update(id, dto);
 		}
 
@@ -91,6 +109,16 @@ export class StoresService {
 					'You do not have permission to update this store',
 				);
 			}
+
+			await this.auditService.log({
+				action: AuditAction.STORE_UPDATED,
+				status: AuditStatus.SUCCESS,
+				metadata: {
+					storeId: id,
+					updates: dto,
+					by: [user._id, user.name],
+				},
+			});
 			return this.update(id, dto);
 		}
 
@@ -102,6 +130,16 @@ export class StoresService {
 	async remove(id: string): Promise<void> {
 		const store = await this.storeModel.findByIdAndDelete(id).exec();
 		if (!store) throw new NotFoundException('Store not found');
+
+		await this.auditService.log({
+			action: AuditAction.STORE_CREATED,
+			status: AuditStatus.SUCCESS,
+			metadata: {
+				storeId: id,
+				storeName: store.name,
+			},
+		});
+
 		// Clean up metrics for this store
 		await this.metricsService.deleteByStoreId(id);
 	}

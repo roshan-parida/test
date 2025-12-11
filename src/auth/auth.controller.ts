@@ -22,6 +22,9 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResendOtpDto } from './dto/resend-otp.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AcceptInvitationDto } from '../users/dto/accept-invitation.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -145,6 +148,92 @@ export class AuthController {
 	@ApiResponse({ status: 401, description: 'Invalid or expired token' })
 	async autoLogin(@Query('token') token: string) {
 		return this.authService.autoLogin(token);
+	}
+
+	@Post('forgot-password')
+	@ApiOperation({
+		summary: 'Request password reset OTP',
+		description: 'Send OTP to user email for password reset',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Password reset OTP sent to email',
+		schema: {
+			type: 'object',
+			properties: {
+				message: {
+					type: 'string',
+					example: 'Password reset OTP sent to your email',
+				},
+				email: { type: 'string', example: 'user@example.com' },
+				expiresIn: { type: 'string', example: '10 minutes' },
+			},
+		},
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'User not found',
+	})
+	async forgotPassword(@Body() dto: ForgotPasswordDto) {
+		return this.authService.forgotPassword(dto);
+	}
+
+	@Post('reset-password')
+	@ApiOperation({
+		summary: 'Reset password with OTP',
+		description: 'Verify OTP and set new password',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Password reset successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				message: {
+					type: 'string',
+					example: 'Password reset successfully',
+				},
+			},
+		},
+	})
+	@ApiResponse({
+		status: 400,
+		description: 'Invalid or expired OTP',
+	})
+	@ApiResponse({
+		status: 404,
+		description: 'User not found',
+	})
+	async resetPassword(@Body() dto: ResetPasswordDto) {
+		return this.authService.resetPassword(dto);
+	}
+
+	@Post('change-password')
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth('JWT-auth')
+	@ApiOperation({
+		summary: 'Change password for logged-in user',
+		description: 'User must provide current password to set a new password',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Password changed successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				message: {
+					type: 'string',
+					example: 'Password changed successfully',
+				},
+			},
+		},
+	})
+	@ApiResponse({
+		status: 401,
+		description: 'Current password is incorrect',
+	})
+	async changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
+		return this.authService.changePassword(req.user.userId, dto);
 	}
 
 	@Get('me')
