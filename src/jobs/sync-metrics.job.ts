@@ -24,10 +24,7 @@ export class SyncMetricsJob {
 
 		const stores = await this.storesService.findAll();
 
-		const now = new Date();
-		const yesterday = new Date(
-			now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-		);
+		const yesterday = new Date();
 		yesterday.setDate(yesterday.getDate() - 1);
 		yesterday.setHours(0, 0, 0, 0);
 
