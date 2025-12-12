@@ -22,13 +22,10 @@ export class SyncProductMetricsJob {
 
 		for (const store of stores) {
 			try {
-				const now = new Date();
-				const to = new Date(
-					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-				);
+				const to = new Date();
 				to.setHours(23, 59, 59, 999);
 
-				const from = new Date(to);
+				const from = new Date();
 				from.setDate(from.getDate() - 30);
 				from.setHours(0, 0, 0, 0);
 

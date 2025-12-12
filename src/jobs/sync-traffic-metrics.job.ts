@@ -24,13 +24,10 @@ export class SyncTrafficMetricsJob {
 
 		for (const store of stores) {
 			try {
-				const now = new Date();
-				const endDate = new Date(
-					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-				);
+				const endDate = new Date();
 				endDate.setHours(23, 59, 59, 999);
 
-				const startDate = new Date(endDate);
+				const startDate = new Date();
 				startDate.setDate(startDate.getDate() - daysBack);
 				startDate.setHours(0, 0, 0, 0);
 
@@ -94,13 +91,10 @@ export class SyncTrafficMetricsJob {
 
 		for (const store of stores) {
 			try {
-				const now = new Date();
-				const endDate = new Date(
-					now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
-				);
+				const endDate = new Date();
 				endDate.setHours(23, 59, 59, 999);
 
-				const startDate = new Date(endDate);
+				const startDate = new Date();
 				startDate.setDate(startDate.getDate() - daysBack);
 				startDate.setHours(0, 0, 0, 0);
 
