@@ -81,8 +81,11 @@ export class AuthService {
 			email: dto.email,
 			name: dto.name,
 			password: hashedPassword,
+			phone: dto.phone,
+			profileImage: dto.profileImage,
 			storeName: dto.storeName,
 			storeUrl: dto.storeUrl,
+			storeLogo: dto.storeLogo,
 			otp,
 			otpExpiresAt,
 			isVerified: false,
@@ -140,10 +143,13 @@ export class AuthService {
 		const user = await this.usersService.create({
 			name: pendingUser.name,
 			email: pendingUser.email,
-			password: pendingUser.password, // Already hashed
+			password: pendingUser.password,
+			phone: pendingUser.phone,
+			profileImage: pendingUser.profileImage,
 			role: UserRole.MANAGER,
 			storeName: pendingUser.storeName,
 			storeUrl: pendingUser.storeUrl,
+			storeLogo: pendingUser.storeLogo,
 		});
 
 		await this.auditService.log({
@@ -454,9 +460,12 @@ export class AuthService {
 			name: dto.name,
 			email: invitation.email,
 			password: hashedPassword,
+			phone: dto.phone,
+			profileImage: dto.profileImage,
 			role: UserRole.VIEWER,
 			storeName: invitation.storeName,
 			storeUrl: invitation.storeUrl,
+			storeLogo: invitation.storeLogo,
 		});
 
 		await this.auditService.log({

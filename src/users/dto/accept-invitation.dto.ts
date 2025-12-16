@@ -1,4 +1,4 @@
-import { IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AcceptInvitationDto {
@@ -16,4 +16,22 @@ export class AcceptInvitationDto {
 	@IsString()
 	@MinLength(8)
 	password: string;
+
+	@ApiProperty({
+		example: '+911234567890',
+		description: 'Phone number (optional)',
+		required: false,
+	})
+	@IsString()
+	@IsOptional()
+	phone?: string;
+
+	@ApiProperty({
+		example: 'https://example.com/profile.jpg',
+		description: 'Profile image URL (optional)',
+		required: false,
+	})
+	@IsUrl()
+	@IsOptional()
+	profileImage?: string;
 }

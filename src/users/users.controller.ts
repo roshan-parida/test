@@ -28,6 +28,7 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { SetUserActiveDto } from './dto/set-user-active.dto';
 import { AssignStoresDto } from './dto/assign-stores.dto';
 import { InviteViewerDto } from './dto/invite-viewer.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -51,6 +52,20 @@ export class UsersController {
 			delete obj.__v;
 			return obj;
 		});
+	}
+
+	@Patch('me/profile')
+	@Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.VIEWER)
+	@ApiOperation({ summary: 'Update current user profile' })
+	async updateMyProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
+		const user = await this.usersService.updateProfile(
+			req.user.userId,
+			dto,
+		);
+		const obj = user.toObject();
+		delete obj.password;
+		delete obj.__v;
+		return obj;
 	}
 
 	@Patch(':userId/role')

@@ -18,6 +18,9 @@ export class Invitation extends Document {
 	@Prop({ required: true })
 	storeUrl: string;
 
+	@Prop({ required: false })
+	storeLogo?: string;
+
 	@Prop({ required: true, unique: true })
 	token: string;
 

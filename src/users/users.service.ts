@@ -12,9 +12,12 @@ interface CreateUserInput {
 	name: string;
 	email: string;
 	password: string;
+	phone?: string;
+	profileImage?: string;
 	role: UserRole;
 	storeName: string;
 	storeUrl: string;
+	storeLogo?: string;
 }
 
 @Injectable()
@@ -48,6 +51,17 @@ export class UsersService {
 
 	async findByStoreName(storeName: string): Promise<User | null> {
 		return this.userModel.findOne({ storeName }).exec();
+	}
+
+	async updateProfile(
+		userId: string,
+		data: { name?: string; phone?: string; profileImage?: string },
+	): Promise<User> {
+		const user = await this.userModel
+			.findByIdAndUpdate(userId, data, { new: true })
+			.exec();
+		if (!user) throw new NotFoundException('User not found');
+		return user;
 	}
 
 	async updateRole(id: string, role: UserRole): Promise<User> {
@@ -166,12 +180,11 @@ export class UsersService {
 			throw new Error('Only users with the VIEWER role can be invited.');
 		}
 
-		// Delete any existing pending invitations for this email
 		await this.invitationModel.deleteMany({ email, isAccepted: false });
 
 		const token = crypto.randomBytes(32).toString('hex');
 		const expiresAt = new Date();
-		expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
+		expiresAt.setDate(expiresAt.getDate() + 7);
 
 		const invitation = new this.invitationModel({
 			email,
