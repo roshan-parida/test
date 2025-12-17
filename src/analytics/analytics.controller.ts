@@ -6,6 +6,7 @@ import {
 	UseGuards,
 	Logger,
 	Query,
+	BadRequestException,
 } from '@nestjs/common';
 import {
 	ApiTags,
@@ -24,6 +25,7 @@ import { StoresService } from '../stores/stores.service';
 import { ShopifyService } from '../integrations/shopify/shopify.service';
 import { ProductMetricsService } from '../analytics/product-metric.service';
 import { TrafficMetricsService } from './traffic-metric.service';
+import { GeoMetricsService } from './geo-metric.service';
 
 @ApiTags('Shopify Analytics')
 @ApiBearerAuth('JWT-auth')
@@ -37,6 +39,7 @@ export class AnalyticsController {
 		private readonly shopifyService: ShopifyService,
 		private readonly productMetricsService: ProductMetricsService,
 		private readonly trafficMetricsService: TrafficMetricsService,
+		private readonly geoMetricsService: GeoMetricsService,
 	) {}
 
 	@Get('stores/:storeId/top-products')
@@ -355,6 +358,132 @@ export class AnalyticsController {
 			message: `Traffic analytics synced for store: ${store.name}`,
 			dateRange: `Last ${daysBack} days`,
 			landingPagesProcessed: processedCount,
+		};
+	}
+
+	@Get('stores/:storeId/geographical')
+	@ApiOperation({
+		summary: 'Get geographical analytics with sessions and sales data',
+		description:
+			'Fetch combined geographical data including sessions, checkouts, add to carts, revenue, and orders by country, region, and city',
+	})
+	@ApiParam({ name: 'storeId', description: 'Store ID' })
+	@ApiQuery({
+		name: 'startDate',
+		required: false,
+		type: String,
+		description: 'Start date in YYYY-MM-DD format (default: 30 days ago)',
+		example: '2025-11-01',
+	})
+	@ApiQuery({
+		name: 'endDate',
+		required: false,
+		type: String,
+		description: 'End date in YYYY-MM-DD format (default: today)',
+		example: '2025-12-16',
+	})
+	@ApiQuery({
+		name: 'limit',
+		required: false,
+		type: Number,
+		description: 'Number of results to return (default: 100)',
+	})
+	@ApiQuery({
+		name: 'groupBy',
+		required: false,
+		enum: ['country', 'region', 'city'],
+		description: 'Grouping level (default: city)',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Geographical analytics retrieved successfully',
+		schema: {
+			type: 'object',
+			properties: {
+				storeId: { type: 'string' },
+				storeName: { type: 'string' },
+				dateRange: {
+					type: 'object',
+					properties: {
+						from: { type: 'string' },
+						to: { type: 'string' },
+					},
+				},
+				groupBy: { type: 'string' },
+				data: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							country: { type: 'string' },
+							region: { type: 'string', nullable: true },
+							city: { type: 'string', nullable: true },
+							sessions: { type: 'number' },
+							sessionsCompletedCheckout: { type: 'number' },
+							addToCarts: { type: 'number' },
+							orders: { type: 'number' },
+							revenue: { type: 'number' },
+							conversionRate: { type: 'number' },
+							averageOrderValue: { type: 'number' },
+						},
+					},
+				},
+				totalRecords: { type: 'number' },
+			},
+		},
+	})
+	@ApiResponse({ status: 400, description: 'Invalid parameters' })
+	@ApiResponse({ status: 404, description: 'Store not found' })
+	async getGeographicalData(
+		@Param('storeId') storeId: string,
+		@Query('startDate') startDate?: string,
+		@Query('endDate') endDate?: string,
+		@Query('limit') limit?: number,
+		@Query('groupBy') groupBy?: string,
+	): Promise<any> {
+		const resultLimit = limit && limit > 0 ? limit : 100;
+		const groupingLevel = groupBy || 'city';
+
+		// Calculate defaults if dates are missing
+		const today = new Date();
+		const thirtyDaysAgo = new Date();
+		thirtyDaysAgo.setDate(today.getDate() - 30);
+
+		const finalStartDate =
+			startDate || thirtyDaysAgo.toISOString().split('T')[0];
+		const finalEndDate = endDate || today.toISOString().split('T')[0];
+
+		// Basic validation
+		if (new Date(finalStartDate) > new Date(finalEndDate)) {
+			throw new BadRequestException(
+				'Start date cannot be after end date',
+			);
+		}
+
+		const store = await this.storesService.findOne(storeId);
+
+		this.logger.log(
+			`Fetching geographical analytics for ${store.name}: ${finalStartDate} to ${finalEndDate}, grouped by ${groupingLevel}`,
+		);
+
+		const data = await this.geoMetricsService.fetchGeographicalData(
+			store,
+			finalStartDate,
+			finalEndDate,
+			resultLimit,
+			groupingLevel as 'country' | 'region' | 'city',
+		);
+
+		return {
+			storeId: store._id,
+			storeName: store.name,
+			dateRange: {
+				from: finalStartDate,
+				to: finalEndDate,
+			},
+			groupBy: groupingLevel,
+			data,
+			totalRecords: data.length,
 		};
 	}
 }
