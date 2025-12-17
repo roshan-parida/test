@@ -12,11 +12,20 @@ export class PendingUser extends Document {
 	@Prop({ required: true })
 	password: string;
 
+	@Prop({ required: false })
+	phone?: string;
+
 	@Prop({ required: true })
 	storeName: string;
 
+	@Prop({ required: false })
+	profileImage?: string;
+
 	@Prop({ required: true })
 	storeUrl: string;
+
+	@Prop({ required: false })
+	storeLogo?: string;
 
 	@Prop({ required: true })
 	otp: string;

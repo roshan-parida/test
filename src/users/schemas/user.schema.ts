@@ -10,6 +10,12 @@ export class User extends Document {
 	@Prop({ required: true, unique: true })
 	email: string;
 
+	@Prop({ required: false })
+	phone?: string;
+
+	@Prop({ required: false })
+	profileImage?: string;
+
 	@Prop({ required: true })
 	password: string;
 
@@ -25,7 +31,6 @@ export class User extends Document {
 	@Prop({ required: true })
 	storeUrl: string;
 
-	// Store access control
 	@Prop({ type: [{ type: Types.ObjectId, ref: 'Store' }], default: [] })
 	assignedStores: Types.ObjectId[];
 

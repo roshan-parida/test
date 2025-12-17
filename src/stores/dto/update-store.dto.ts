@@ -8,6 +8,14 @@ export class UpdateStoreDto {
 	name?: string;
 
 	@ApiPropertyOptional({
+		example: 'https://example.com/logo.png',
+		description: 'Store logo URL',
+	})
+	@IsUrl()
+	@IsOptional()
+	storeLogo?: string;
+
+	@ApiPropertyOptional({
 		example: 'shpat_xxxxx',
 		description: 'Shopify access token',
 	})

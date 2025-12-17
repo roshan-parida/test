@@ -6,6 +6,9 @@ export class Store extends Document {
 	@Prop({ required: true, unique: true })
 	name: string;
 
+	@Prop({ required: false })
+	storeLogo?: string;
+
 	@Prop({ required: true })
 	shopifyToken: string;
 
