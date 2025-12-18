@@ -19,12 +19,11 @@ export class AcceptInvitationDto {
 
 	@ApiProperty({
 		example: '+911234567890',
-		description: 'Phone number (optional)',
-		required: false,
+		description: 'Phone number',
+		required: true,
 	})
 	@IsString()
-	@IsOptional()
-	phone?: string;
+	phone: string;
 
 	@ApiProperty({
 		example: 'https://example.com/profile.jpg',

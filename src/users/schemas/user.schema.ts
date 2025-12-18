@@ -10,8 +10,8 @@ export class User extends Document {
 	@Prop({ required: true, unique: true })
 	email: string;
 
-	@Prop({ required: false })
-	phone?: string;
+	@Prop({ required: true })
+	phone: string;
 
 	@Prop({ required: false })
 	profileImage?: string;

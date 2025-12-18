@@ -35,11 +35,10 @@ export class SignupDto {
 	@ApiProperty({
 		example: '+911234567890',
 		description: 'Phone number',
-		required: false,
+		required: true,
 	})
 	@IsString()
-	@IsOptional()
-	phone?: string;
+	phone: string;
 
 	@ApiProperty({
 		example: 'https://example.com/profile.jpg',
