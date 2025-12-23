@@ -12,7 +12,7 @@ interface CreateUserInput {
 	name: string;
 	email: string;
 	password: string;
-	phone?: string;
+	phone: string;
 	profileImage?: string;
 	role: UserRole;
 	storeName: string;
