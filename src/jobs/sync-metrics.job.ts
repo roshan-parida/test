@@ -18,18 +18,38 @@ export class SyncMetricsJob {
 		private readonly googleService: GoogleService,
 	) {}
 
+	private getYesterdayInIST(): Date {
+		// Get current time in IST
+		const now = new Date();
+		const istDateString = now.toLocaleString('en-US', {
+			timeZone: 'Asia/Kolkata',
+		});
+		const istNow = new Date(istDateString);
+
+		// Get yesterday in IST
+		const yesterdayIST = new Date(istNow);
+		yesterdayIST.setDate(yesterdayIST.getDate() - 1);
+		yesterdayIST.setHours(0, 0, 0, 0);
+
+		this.logger.log(`Current IST time: ${istDateString}`);
+		this.logger.log(`Yesterday IST (start): ${yesterdayIST.toISOString()}`);
+
+		return yesterdayIST;
+	}
+
 	@Cron(CronExpression.EVERY_DAY_AT_2AM)
 	async handleDailySync() {
 		this.logger.log('Starting daily metrics sync...');
 
 		const stores = await this.storesService.findAll();
 
-		const yesterday = new Date();
-		yesterday.setDate(yesterday.getDate() - 1);
-		yesterday.setHours(0, 0, 0, 0);
+		// Get yesterday in IST timezone
+		const yesterday = this.getYesterdayInIST();
+		const yesterdayEnd = new Date(yesterday);
+		yesterdayEnd.setHours(23, 59, 59, 999);
 
 		this.logger.log(
-			`Syncing data for date: ${yesterday.toISOString().slice(0, 10)}`,
+			`Syncing data for date: ${yesterday.toISOString().slice(0, 10)} (IST)`,
 		);
 
 		for (const store of stores) {
@@ -40,17 +60,17 @@ export class SyncMetricsJob {
 					this.shopifyService.fetchOrders(
 						store,
 						yesterday,
-						yesterday,
+						yesterdayEnd,
 					),
 					this.facebookService.fetchAdSpend(
 						store,
 						yesterday,
-						yesterday,
+						yesterdayEnd,
 					),
 					this.googleService.fetchAdSpend(
 						store,
 						yesterday,
-						yesterday,
+						yesterdayEnd,
 					),
 				]);
 

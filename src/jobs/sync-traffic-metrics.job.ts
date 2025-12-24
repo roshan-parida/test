@@ -14,26 +14,50 @@ export class SyncTrafficMetricsJob {
 		private readonly shopifyService: ShopifyService,
 	) {}
 
+	private getDateRangeInIST(daysBack: number): {
+		startDate: Date;
+		endDate: Date;
+	} {
+		// Get current time in IST
+		const now = new Date();
+		const istDateString = now.toLocaleString('en-US', {
+			timeZone: 'Asia/Kolkata',
+		});
+		const istNow = new Date(istDateString);
+
+		// End date: yesterday in IST
+		const endDateIST = new Date(istNow);
+		endDateIST.setDate(endDateIST.getDate() - 1);
+		endDateIST.setHours(23, 59, 59, 999);
+
+		// Start date: daysBack from yesterday in IST
+		const startDateIST = new Date(endDateIST);
+		startDateIST.setDate(startDateIST.getDate() - daysBack + 1);
+		startDateIST.setHours(0, 0, 0, 0);
+
+		this.logger.log(`Current IST time: ${istDateString}`);
+		this.logger.log(`Start date IST: ${startDateIST.toISOString()}`);
+		this.logger.log(`End date IST: ${endDateIST.toISOString()}`);
+
+		return { startDate: startDateIST, endDate: endDateIST };
+	}
+
 	@Cron(CronExpression.EVERY_DAY_AT_4AM)
 	async handleDailyTrafficSync() {
 		this.logger.log('Starting daily traffic metrics sync...');
 
 		const stores = await this.storesService.findAll();
-		const daysBack = 7; // Last 7 days
-		const pageLimit = 20; // Top 20 landing pages
+		const daysBack = 7;
+		const pageLimit = 20;
+		const { startDate, endDate } = this.getDateRangeInIST(daysBack);
+
+		this.logger.log(
+			`Syncing traffic metrics for last ${daysBack} days: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)} (IST)`,
+		);
 
 		for (const store of stores) {
 			try {
-				const endDate = new Date();
-				endDate.setHours(23, 59, 59, 999);
-
-				const startDate = new Date();
-				startDate.setDate(startDate.getDate() - daysBack);
-				startDate.setHours(0, 0, 0, 0);
-
-				this.logger.log(
-					`Processing traffic metrics for: ${store.name} from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`,
-				);
+				this.logger.debug(`Processing store: ${store.name}`);
 
 				// Reset existing data for this date range
 				await this.trafficMetricsService.resetStoreTraffic(
@@ -86,21 +110,17 @@ export class SyncTrafficMetricsJob {
 		this.logger.log('Starting weekly extended traffic metrics sync...');
 
 		const stores = await this.storesService.findAll();
-		const daysBack = 30; // Last 30 days
-		const pageLimit = 50; // Top 50 landing pages
+		const daysBack = 30;
+		const pageLimit = 50;
+		const { startDate, endDate } = this.getDateRangeInIST(daysBack);
+
+		this.logger.log(
+			`Syncing extended traffic metrics for last ${daysBack} days: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)} (IST)`,
+		);
 
 		for (const store of stores) {
 			try {
-				const endDate = new Date();
-				endDate.setHours(23, 59, 59, 999);
-
-				const startDate = new Date();
-				startDate.setDate(startDate.getDate() - daysBack);
-				startDate.setHours(0, 0, 0, 0);
-
-				this.logger.log(
-					`Processing extended traffic metrics for: ${store.name} from ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`,
-				);
+				this.logger.debug(`Processing store: ${store.name}`);
 
 				// Reset existing data for this date range
 				await this.trafficMetricsService.resetStoreTraffic(

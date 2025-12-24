@@ -14,6 +14,7 @@ import { MailModule } from './mail/mail.module';
 import { FacebookAnalyticsModule } from './integrations/facebook/facebook-analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { DocsModule } from './docs/docs.module';
+import { PredictionsModule } from './predictions/predictions.module';
 
 @Module({
 	imports: [
@@ -35,6 +36,7 @@ import { DocsModule } from './docs/docs.module';
 		FacebookAnalyticsModule,
 		AuditModule,
 		DocsModule,
+		PredictionsModule,
 	],
 	controllers: [AppController],
 	providers: [AppService],

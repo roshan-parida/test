@@ -14,24 +14,48 @@ export class SyncProductMetricsJob {
 		private readonly shopifyService: ShopifyService,
 	) {}
 
+	private getDateRangeInIST(daysBack: number): {
+		startDate: Date;
+		endDate: Date;
+	} {
+		// Get current time in IST
+		const now = new Date();
+		const istDateString = now.toLocaleString('en-US', {
+			timeZone: 'Asia/Kolkata',
+		});
+		const istNow = new Date(istDateString);
+
+		// End date: yesterday in IST
+		const endDateIST = new Date(istNow);
+		endDateIST.setDate(endDateIST.getDate() - 1);
+		endDateIST.setHours(23, 59, 59, 999);
+
+		// Start date: daysBack from yesterday in IST
+		const startDateIST = new Date(endDateIST);
+		startDateIST.setDate(startDateIST.getDate() - daysBack + 1);
+		startDateIST.setHours(0, 0, 0, 0);
+
+		this.logger.log(`Current IST time: ${istDateString}`);
+		this.logger.log(`Start date IST: ${startDateIST.toISOString()}`);
+		this.logger.log(`End date IST: ${endDateIST.toISOString()}`);
+
+		return { startDate: startDateIST, endDate: endDateIST };
+	}
+
 	@Cron(CronExpression.EVERY_DAY_AT_3AM)
 	async handleDailyProductSync() {
 		this.logger.log('Starting daily product metrics sync...');
 
 		const stores = await this.storesService.findAll();
+		const { startDate, endDate } = this.getDateRangeInIST(30);
+
+		this.logger.log(
+			`Syncing products for last 30 days: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)} (IST)`,
+		);
 
 		for (const store of stores) {
 			try {
-				const to = new Date();
-				to.setHours(23, 59, 59, 999);
-
-				const from = new Date();
-				from.setDate(from.getDate() - 30);
-				from.setHours(0, 0, 0, 0);
-
-				this.logger.log(
-					`Syncing products for ${store.name}: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)}`,
-				);
+				this.logger.debug(`Processing store: ${store.name}`);
 
 				// Reset existing data before fresh sync
 				await this.productMetricsService.resetStoreProducts(
@@ -42,8 +66,8 @@ export class SyncProductMetricsJob {
 				const productSales =
 					await this.shopifyService.fetchProductSales(
 						store,
-						from,
-						to,
+						startDate,
+						endDate,
 					);
 
 				let processedCount = 0;

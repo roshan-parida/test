@@ -32,7 +32,6 @@ interface TrafficAnalyticsData {
 @Injectable()
 export class ShopifyService {
 	private readonly logger = new Logger(ShopifyService.name);
-	private readonly DELAY_BETWEEN_DAYS_MS = 100;
 
 	constructor(private readonly auditService: AuditService) {}
 
@@ -66,6 +65,19 @@ export class ShopifyService {
 		}
 	}
 
+	private toISTString(date: Date): string {
+		const istOffset = 5.5 * 60 * 60 * 1000;
+		const istDate = new Date(date.getTime() + istOffset);
+		return istDate.toISOString().replace('Z', '+05:30');
+	}
+
+	private getUTCDateString(date: Date): string {
+		const year = date.getUTCFullYear();
+		const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+		const day = String(date.getUTCDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
 	private getOrdersQuery(): string {
 		return `
 			query getOrders($cursor: String, $queryString: String!) {
@@ -74,6 +86,7 @@ export class ShopifyService {
 						cursor
 						node {
 							id
+							createdAt
 							totalPriceSet { shopMoney { amount } }
 							lineItems(first: 100) {
 								edges {
@@ -98,10 +111,6 @@ export class ShopifyService {
 		`;
 	}
 
-	private sleep(ms: number): Promise<void> {
-		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
-
 	async fetchOrders(
 		store: Store,
 		from: Date,
@@ -109,17 +118,28 @@ export class ShopifyService {
 	): Promise<DailyOrdersSummary[]> {
 		try {
 			const startTime = Date.now();
+
+			// Log with both UTC and IST for debugging
+			this.logger.log(
+				`[TIMEZONE DEBUG] fetchOrders called with:
+				- from (UTC): ${from.toISOString()}
+				- to (UTC): ${to.toISOString()}
+				- from (IST): ${this.toISTString(from)}
+				- to (IST): ${this.toISTString(to)}`,
+			);
+
 			await this.auditService.log({
 				action: AuditAction.SHOPIFY_SYNC_STARTED,
 				status: AuditStatus.PENDING,
 				storeId: store._id.toString(),
 				storeName: store.name,
-				metadata: { from: from.toISOString(), to: to.toISOString() },
+				metadata: {
+					from: from.toISOString(),
+					to: to.toISOString(),
+					fromIST: this.toISTString(from),
+					toIST: this.toISTString(to),
+				},
 			});
-
-			const results: DailyOrdersSummary[] = [];
-			const currentDate = new Date(from);
-			let dayCount = 0;
 
 			const totalDays =
 				Math.ceil(
@@ -130,74 +150,84 @@ export class ShopifyService {
 				`Fetching Shopify orders for ${store.name}: ${from.toISOString().slice(0, 10)} to ${to.toISOString().slice(0, 10)} (${totalDays} days)`,
 			);
 
-			while (currentDate <= to) {
-				const dayStart = new Date(currentDate);
-				dayStart.setHours(0, 0, 0, 0);
+			// Query ALL orders in the date range at once
+			// Use ISO string format which Shopify understands
+			const fromISO = from.toISOString();
+			const toISO = to.toISOString();
+			const queryString = `created_at:>='${fromISO}' AND created_at:<='${toISO}'`;
 
-				const dayEnd = new Date(currentDate);
-				dayEnd.setHours(23, 59, 59, 999);
+			this.logger.debug(`Shopify query: ${queryString}`);
 
-				const queryString = `created_at:>='${dayStart.toISOString()}' AND created_at:<='${dayEnd.toISOString()}'`;
+			const ordersMap = new Map<string, DailyOrdersSummary>();
+			let cursor: string | null = null;
+			let hasNextPage = true;
+			let processedOrders = 0;
 
-				let cursor: string | null = null;
-				let hasNextPage = true;
-				let soldOrders = 0;
-				let orderValue = 0;
-				let soldItems = 0;
+			while (hasNextPage) {
+				const data = await this.callShopify(
+					store,
+					this.getOrdersQuery(),
+					{ cursor, queryString },
+				);
 
-				while (hasNextPage) {
-					const data = await this.callShopify(
-						store,
-						this.getOrdersQuery(),
-						{
-							cursor,
-							queryString,
-						},
+				const orders = data.orders.edges;
+
+				for (const order of orders) {
+					// Group by day in-memory using UTC date
+					const orderDate = new Date(order.node.createdAt);
+					const dateKey = this.getUTCDateString(orderDate);
+
+					this.logger.debug(
+						`Order ${order.node.id}: createdAt=${order.node.createdAt}, dateKey=${dateKey}`,
 					);
 
-					const orders = data.orders.edges;
-
-					for (const order of orders) {
-						soldOrders++;
-						orderValue += parseFloat(
-							order.node.totalPriceSet.shopMoney.amount || '0',
-						);
-
-						for (const item of order.node.lineItems.edges) {
-							soldItems += item.node.quantity;
-						}
+					if (!ordersMap.has(dateKey)) {
+						ordersMap.set(dateKey, {
+							date: dateKey,
+							soldOrders: 0,
+							orderValue: 0,
+							soldItems: 0,
+						});
 					}
 
-					hasNextPage = data.orders.pageInfo.hasNextPage;
-					cursor = hasNextPage
-						? orders[orders.length - 1].cursor
-						: null;
+					const daySummary = ordersMap.get(dateKey)!;
+					daySummary.soldOrders++;
+					daySummary.orderValue += parseFloat(
+						order.node.totalPriceSet.shopMoney.amount || '0',
+					);
+
+					for (const item of order.node.lineItems.edges) {
+						daySummary.soldItems += item.node.quantity;
+					}
+
+					processedOrders++;
 				}
 
-				results.push({
-					date: currentDate.toISOString().slice(0, 10),
-					soldOrders,
-					orderValue,
-					soldItems,
-				});
+				hasNextPage = data.orders.pageInfo.hasNextPage;
+				cursor = hasNextPage ? orders[orders.length - 1].cursor : null;
 
-				dayCount++;
-				if (dayCount % 10 === 0) {
+				if (processedOrders % 100 === 0) {
 					this.logger.log(
-						`Progress: ${dayCount}/${totalDays} days processed for ${store.name}`,
+						`Progress: ${processedOrders} orders processed for ${store.name}`,
 					);
 				}
-
-				if (totalDays > 1 && currentDate < to) {
-					await this.sleep(this.DELAY_BETWEEN_DAYS_MS);
-				}
-
-				currentDate.setDate(currentDate.getDate() + 1);
 			}
 
-			this.logger.log(
-				`✓ Retrieved ${results.length} days of orders for ${store.name}`,
+			// Convert map to sorted array
+			const results = Array.from(ordersMap.values()).sort((a, b) =>
+				a.date.localeCompare(b.date),
 			);
+
+			this.logger.log(
+				`✓ Retrieved ${results.length} days of orders (${processedOrders} total orders) for ${store.name}`,
+			);
+
+			// Log the dates we got data for
+			if (results.length > 0) {
+				this.logger.log(
+					`Date range in results: ${results[0].date} to ${results[results.length - 1].date}`,
+				);
+			}
 
 			await this.auditService.log({
 				action: AuditAction.SHOPIFY_ORDERS_FETCHED,
@@ -205,7 +235,15 @@ export class ShopifyService {
 				storeId: store._id.toString(),
 				storeName: store.name,
 				duration: Date.now() - startTime,
-				metadata: { daysProcessed: results.length, totalDays },
+				metadata: {
+					daysProcessed: results.length,
+					totalDays,
+					totalOrders: processedOrders,
+					dateRange:
+						results.length > 0
+							? `${results[0].date} to ${results[results.length - 1].date}`
+							: 'no data',
+				},
 			});
 
 			return results;
@@ -235,15 +273,18 @@ export class ShopifyService {
 				storeId: store._id.toString(),
 				storeName: store.name,
 				metadata: {
-					from: from ? from.toISOString() : '',
-					to: to ? to.toISOString() : '',
+					from: from ? from.toISOString() : 'all-time',
+					to: to ? to.toISOString() : 'all-time',
 				},
 			});
 
 			let queryString = '';
 			if (from && to) {
-				queryString = `created_at:>='${from.toISOString()}' AND created_at:<='${to.toISOString()}'`;
+				const fromISO = from.toISOString();
+				const toISO = to.toISOString();
+				queryString = `created_at:>='${fromISO}' AND created_at:<='${toISO}'`;
 			}
+
 			let cursor: string | null = null;
 			let hasNextPage = true;
 			const productMap = new Map<string, ProductSalesData>();
@@ -319,7 +360,7 @@ export class ShopifyService {
 				storeName: store.name,
 				duration: Date.now() - startTime,
 				metadata: {
-					daysProcessed: results.length,
+					productsProcessed: results.length,
 					dateRangeLog: dateRangeLog,
 				},
 			});
@@ -436,7 +477,7 @@ export class ShopifyService {
 				storeName: store.name,
 				duration: Date.now() - startTime,
 				metadata: {
-					daysProcessed: results.length,
+					landingPagesProcessed: results.length,
 					daysBack: daysBack,
 					limit: limit,
 				},
