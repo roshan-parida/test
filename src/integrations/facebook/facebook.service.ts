@@ -68,6 +68,27 @@ export class FacebookService {
 		private readonly auditService: AuditService,
 	) {}
 
+	private getISTDateString(date: Date): string {
+		const istDate = new Date(date.getTime() + 5.5 * 60 * 60 * 1000);
+		const year = istDate.getUTCFullYear();
+		const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
+		const day = String(istDate.getUTCDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	private getISTDateBoundaries(date: Date): { start: Date; end: Date } {
+		const dateStr = this.getISTDateString(date);
+
+		// Parse as UTC midnight, then adjust to IST boundaries
+		// Start: 2025-12-29 00:00:00 IST = 2025-12-28 18:30:00 UTC
+		const startIST = new Date(`${dateStr}T00:00:00+05:30`);
+
+		// End: 2025-12-29 23:59:59.999 IST = 2025-12-29 18:29:59.999 UTC
+		const endIST = new Date(`${dateStr}T23:59:59.999+05:30`);
+
+		return { start: startIST, end: endIST };
+	}
+
 	private async callFacebook(
 		url: string,
 		params: any,
@@ -123,8 +144,8 @@ export class FacebookService {
 				time_increment: 1,
 				limit: 500,
 				time_range: JSON.stringify({
-					since: from.toISOString().slice(0, 10),
-					until: to.toISOString().slice(0, 10),
+					since: this.getISTDateString(from),
+					until: this.getISTDateString(to),
 				}),
 			};
 
@@ -393,8 +414,8 @@ export class FacebookService {
 				level: entityId ? undefined : level,
 				fields: this.getMetricFields(),
 				time_range: JSON.stringify({
-					since: from.toISOString().slice(0, 10),
-					until: to.toISOString().slice(0, 10),
+					since: this.getISTDateString(from),
+					until: this.getISTDateString(to),
 				}),
 				limit,
 			};
@@ -566,8 +587,8 @@ export class FacebookService {
 		const adAccountId = this.normalizeAccountId(store.fbAccountId);
 
 		const timeRange = JSON.stringify({
-			since: from.toISOString().slice(0, 10),
-			until: to.toISOString().slice(0, 10),
+			since: this.getISTDateString(from),
+			until: this.getISTDateString(to),
 		});
 
 		// Prepare batch requests
@@ -638,8 +659,8 @@ export class FacebookService {
 		const adAccountId = this.normalizeAccountId(store.fbAccountId);
 
 		const timeRange = JSON.stringify({
-			since: from.toISOString().slice(0, 10),
-			until: to.toISOString().slice(0, 10),
+			since: this.getISTDateString(from),
+			until: this.getISTDateString(to),
 		});
 
 		const metadataUrl = campaignId
@@ -706,8 +727,8 @@ export class FacebookService {
 		const adAccountId = this.normalizeAccountId(store.fbAccountId);
 
 		const timeRange = JSON.stringify({
-			since: from.toISOString().slice(0, 10),
-			until: to.toISOString().slice(0, 10),
+			since: this.getISTDateString(from),
+			until: this.getISTDateString(to),
 		});
 
 		const metadataUrl = adSetId
