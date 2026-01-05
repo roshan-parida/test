@@ -22,6 +22,26 @@ export class Store extends Document {
 	@Prop({ required: true })
 	fbAccountId: string;
 
+	// Oauth start
+	@Prop({ required: false })
+	shopifyTokenExpiresAt?: Date;
+
+	@Prop({ required: false })
+	fbRefreshToken?: string;
+
+	@Prop({ required: false })
+	fbTokenExpiresAt?: Date;
+
+	@Prop({ required: false })
+	googleRefreshToken?: string;
+
+	@Prop({ required: false })
+	googleTokenExpiresAt?: Date;
+
+	@Prop({ required: false })
+	googleCustomerId?: string;
+	// Oauth end
+
 	@Prop({ type: String, enum: StoreStatus, default: StoreStatus.PENDING })
 	status: StoreStatus;
 

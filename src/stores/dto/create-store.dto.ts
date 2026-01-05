@@ -18,11 +18,12 @@ export class CreateStoreDto {
 
 	@ApiProperty({
 		example: 'shpat_xxxxx',
-		description: 'Shopify access token',
+		description: 'Shopify access token (optional if using OAuth)',
+		required: false,
 	})
 	@IsString()
-	@IsNotEmpty()
-	shopifyToken: string;
+	@IsOptional()
+	shopifyToken?: string;
 
 	@ApiProperty({
 		example: 'https://store.myshopify.com',
@@ -34,17 +35,19 @@ export class CreateStoreDto {
 
 	@ApiProperty({
 		example: '987a6e54321',
-		description: 'Facebook ad spend token',
+		description: 'Facebook ad spend token (optional if using OAuth)',
+		required: false,
 	})
 	@IsString()
-	@IsNotEmpty()
-	fbAdSpendToken: string;
+	@IsOptional()
+	fbAdSpendToken?: string;
 
 	@ApiProperty({
 		example: 'act_123456789',
-		description: 'Facebook account ID',
+		description: 'Facebook account ID (optional if using OAuth)',
+		required: false,
 	})
 	@IsString()
-	@IsNotEmpty()
-	fbAccountId: string;
+	@IsOptional()
+	fbAccountId?: string;
 }

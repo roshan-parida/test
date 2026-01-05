@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { OAuthModule } from './oauth/oauth.module';
 import { UsersModule } from './users/users.module';
 import { StoresModule } from './stores/stores.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -27,6 +28,7 @@ import { PredictionsModule } from './predictions/predictions.module';
 		}),
 		ScheduleModule.forRoot(),
 		AuthModule,
+		OAuthModule,
 		UsersModule,
 		StoresModule,
 		MetricsModule,

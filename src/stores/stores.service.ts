@@ -264,6 +264,62 @@ export class StoresService {
 		await this.metricsService.deleteByStoreId(id);
 	}
 
+	async saveOAuthCredentials(
+		storeId: string,
+		provider: 'shopify' | 'meta' | 'google',
+		credentials: {
+			accessToken: string;
+			refreshToken?: string;
+			expiresAt?: Date;
+			additionalData?: any;
+		},
+	): Promise<Store> {
+		const updateData: any = {};
+
+		switch (provider) {
+			case 'shopify':
+				updateData.shopifyToken = credentials.accessToken;
+				if (credentials.additionalData?.shopifyStoreUrl) {
+					updateData.shopifyStoreUrl =
+						credentials.additionalData.shopifyStoreUrl;
+				}
+				if (credentials.expiresAt) {
+					updateData.shopifyTokenExpiresAt = credentials.expiresAt;
+				}
+				break;
+
+			case 'meta':
+				updateData.fbAdSpendToken = credentials.accessToken;
+				if (credentials.refreshToken) {
+					updateData.fbRefreshToken = credentials.refreshToken;
+				}
+				if (credentials.expiresAt) {
+					updateData.fbTokenExpiresAt = credentials.expiresAt;
+				}
+				if (credentials.additionalData?.accountId) {
+					updateData.fbAccountId =
+						credentials.additionalData.accountId;
+				}
+				break;
+
+			case 'google':
+				// Google tokens would be stored here when implemented
+				if (credentials.refreshToken) {
+					updateData.googleRefreshToken = credentials.refreshToken;
+				}
+				if (credentials.expiresAt) {
+					updateData.googleTokenExpiresAt = credentials.expiresAt;
+				}
+				if (credentials.additionalData?.customerId) {
+					updateData.googleCustomerId =
+						credentials.additionalData.customerId;
+				}
+				break;
+		}
+
+		return this.update(storeId, updateData);
+	}
+
 	canAccessStore(user: any, storeId: string): boolean {
 		if (!user) return false;
 
