@@ -50,12 +50,10 @@ export class OAuthController {
 		required: false,
 		description: 'Existing store ID to update (optional)',
 	})
-	@ApiResponse({ status: 302, description: 'Redirect to Shopify OAuth' })
 	async shopifyAuthorize(
 		@Query('shopDomain') shopDomain: string,
 		@Query('storeId') storeId: string | undefined,
 		@Req() req: any,
-		@Res() res: Response,
 	) {
 		if (!shopDomain) {
 			throw new BadRequestException('shopDomain is required');
@@ -67,10 +65,9 @@ export class OAuthController {
 			storeId,
 		);
 
-		this.logger.log(
-			`Redirecting to Shopify OAuth for user ${req.user.userId}`,
-		);
-		return res.redirect(authUrl);
+		this.logger.log(`OAuth URL generated for user ${req.user.userId}`);
+
+		return { authUrl };
 	}
 
 	@Get('shopify/callback')
@@ -130,21 +127,17 @@ export class OAuthController {
 		required: false,
 		description: 'Existing store ID to update (optional)',
 	})
-	@ApiResponse({ status: 302, description: 'Redirect to Meta OAuth' })
 	async metaAuthorize(
 		@Query('storeId') storeId: string | undefined,
 		@Req() req: any,
-		@Res() res: Response,
 	) {
 		const authUrl = this.oauthService.getMetaAuthUrl(
 			req.user.userId,
 			storeId,
 		);
 
-		this.logger.log(
-			`Redirecting to Meta OAuth for user ${req.user.userId}`,
-		);
-		return res.redirect(authUrl);
+		this.logger.log(`Meta OAuth URL generated for user ${req.user.userId}`);
+		return { authUrl };
 	}
 
 	@Get('meta/callback')
@@ -189,11 +182,9 @@ export class OAuthController {
 		required: false,
 		description: 'Existing store ID to update (optional)',
 	})
-	@ApiResponse({ status: 302, description: 'Redirect to Google OAuth' })
 	async googleAuthorize(
 		@Query('storeId') storeId: string | undefined,
 		@Req() req: any,
-		@Res() res: Response,
 	) {
 		const authUrl = this.oauthService.getGoogleAuthUrl(
 			req.user.userId,
@@ -201,9 +192,9 @@ export class OAuthController {
 		);
 
 		this.logger.log(
-			`Redirecting to Google OAuth for user ${req.user.userId}`,
+			`Google OAuth URL generated for user ${req.user.userId}`,
 		);
-		return res.redirect(authUrl);
+		return { authUrl };
 	}
 
 	@Get('google/callback')
