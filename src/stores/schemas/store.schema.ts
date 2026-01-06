@@ -10,27 +10,32 @@ export class Store extends Document {
 	@Prop({ required: false })
 	storeLogo?: string;
 
+	// Shopify OAuth
 	@Prop({ required: true })
 	shopifyToken: string;
 
 	@Prop({ required: true })
 	shopifyStoreUrl: string;
 
+	@Prop({ required: false })
+	shopifyTokenExpiresAt?: Date;
+
+	// Facebook/Meta OAuth
 	@Prop({ required: true })
 	fbAdSpendToken: string;
 
 	@Prop({ required: true })
 	fbAccountId: string;
 
-	// Oauth start
-	@Prop({ required: false })
-	shopifyTokenExpiresAt?: Date;
-
 	@Prop({ required: false })
 	fbRefreshToken?: string;
 
 	@Prop({ required: false })
 	fbTokenExpiresAt?: Date;
+
+	// Google Ads OAuth
+	@Prop({ required: false })
+	googleAccessToken?: string;
 
 	@Prop({ required: false })
 	googleRefreshToken?: string;
@@ -39,9 +44,9 @@ export class Store extends Document {
 	googleTokenExpiresAt?: Date;
 
 	@Prop({ required: false })
-	googleCustomerId?: string;
-	// Oauth end
+	googleCustomerId?: string; // Format: "123-456-7890" or "1234567890"
 
+	// Store approval
 	@Prop({ type: String, enum: StoreStatus, default: StoreStatus.PENDING })
 	status: StoreStatus;
 

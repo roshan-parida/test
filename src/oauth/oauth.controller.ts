@@ -34,7 +34,6 @@ export class OAuthController {
 	) {}
 
 	// ==================== SHOPIFY ====================
-
 	@Get('shopify/authorize')
 	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
@@ -116,7 +115,6 @@ export class OAuthController {
 	}
 
 	// ==================== META (FACEBOOK) ====================
-
 	@Get('meta/authorize')
 	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
@@ -171,7 +169,6 @@ export class OAuthController {
 	}
 
 	// ==================== GOOGLE ====================
-
 	@Get('google/authorize')
 	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
@@ -212,12 +209,11 @@ export class OAuthController {
 				state,
 			);
 
-			// Note: Google Ads API requires additional setup to fetch customer IDs
-			// For now, we'll return the tokens and let the user manually enter their customer ID
-			const redirectUrl = `${result.state.returnUrl}?oauth=google&status=success&storeId=${result.state.storeId || ''}&hasRefreshToken=${!!result.token.refreshToken}`;
+			// Return customer accounts for user selection
+			const redirectUrl = `${result.state.returnUrl}?oauth=google&status=success&storeId=${result.state.storeId || ''}&customers=${encodeURIComponent(JSON.stringify(result.customers))}&token=${encodeURIComponent(result.token.accessToken)}&refreshToken=${encodeURIComponent(result.token.refreshToken || '')}`;
 
 			this.logger.log(
-				`Google OAuth successful for user ${result.state.userId}`,
+				`Google OAuth successful for user ${result.state.userId}, found ${result.customers.length} customer accounts`,
 			);
 
 			return res.redirect(redirectUrl);

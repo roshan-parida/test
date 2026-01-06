@@ -5,7 +5,9 @@ import {
 	ForbiddenException,
 	Inject,
 	forwardRef,
+	Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Store } from './schemas/store.schema';
@@ -20,10 +22,13 @@ import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class StoresService {
+	private readonly logger = new Logger(StoresService.name);
+
 	constructor(
 		@InjectModel(Store.name)
 		private readonly storeModel: Model<Store>,
 		@Inject(forwardRef(() => MetricsService))
+		private readonly configService: ConfigService,
 		private readonly metricsService: MetricsService,
 		private readonly mailService: MailService,
 		private readonly auditService: AuditService,
@@ -271,10 +276,19 @@ export class StoresService {
 			accessToken: string;
 			refreshToken?: string;
 			expiresAt?: Date;
+			expiresIn?: number; // seconds
 			additionalData?: any;
 		},
 	): Promise<Store> {
 		const updateData: any = {};
+
+		// Calculate expiration date if expiresIn is provided
+		let expirationDate: Date | undefined = credentials.expiresAt;
+		if (!expirationDate && credentials.expiresIn) {
+			expirationDate = new Date(
+				Date.now() + credentials.expiresIn * 1000,
+			);
+		}
 
 		switch (provider) {
 			case 'shopify':
@@ -283,8 +297,8 @@ export class StoresService {
 					updateData.shopifyStoreUrl =
 						credentials.additionalData.shopifyStoreUrl;
 				}
-				if (credentials.expiresAt) {
-					updateData.shopifyTokenExpiresAt = credentials.expiresAt;
+				if (expirationDate) {
+					updateData.shopifyTokenExpiresAt = expirationDate;
 				}
 				break;
 
@@ -293,8 +307,8 @@ export class StoresService {
 				if (credentials.refreshToken) {
 					updateData.fbRefreshToken = credentials.refreshToken;
 				}
-				if (credentials.expiresAt) {
-					updateData.fbTokenExpiresAt = credentials.expiresAt;
+				if (expirationDate) {
+					updateData.fbTokenExpiresAt = expirationDate;
 				}
 				if (credentials.additionalData?.accountId) {
 					updateData.fbAccountId =
@@ -303,21 +317,121 @@ export class StoresService {
 				break;
 
 			case 'google':
-				// Google tokens would be stored here when implemented
+				// Store both access and refresh tokens
+				updateData.googleAccessToken = credentials.accessToken;
+
 				if (credentials.refreshToken) {
 					updateData.googleRefreshToken = credentials.refreshToken;
 				}
-				if (credentials.expiresAt) {
-					updateData.googleTokenExpiresAt = credentials.expiresAt;
+
+				if (expirationDate) {
+					updateData.googleTokenExpiresAt = expirationDate;
 				}
+
 				if (credentials.additionalData?.customerId) {
-					updateData.googleCustomerId =
-						credentials.additionalData.customerId;
+					// Clean up customer ID (remove dashes if present)
+					const cleanCustomerId =
+						credentials.additionalData.customerId.replace(/-/g, '');
+					updateData.googleCustomerId = cleanCustomerId;
 				}
+
+				this.logger.log(
+					`Saved Google OAuth credentials for store ${storeId}. ` +
+						`Customer ID: ${updateData.googleCustomerId || 'not set'}, ` +
+						`Has refresh token: ${!!credentials.refreshToken}, ` +
+						`Expires at: ${expirationDate?.toISOString() || 'not set'}`,
+				);
 				break;
 		}
 
+		await this.auditService.log({
+			action: AuditAction.STORE_UPDATED,
+			status: AuditStatus.SUCCESS,
+			storeId,
+			metadata: {
+				action: 'oauth_credentials_saved',
+				provider,
+				hasRefreshToken: !!credentials.refreshToken,
+				expiresAt: expirationDate?.toISOString(),
+			},
+		});
+
 		return this.update(storeId, updateData);
+	}
+
+	async getValidGoogleToken(store: Store): Promise<string> {
+		const now = new Date();
+
+		// If we have an access token and it's not expired (with 5-minute buffer)
+		if (store.googleAccessToken && store.googleTokenExpiresAt) {
+			const expiresAt = new Date(store.googleTokenExpiresAt);
+			const bufferTime = new Date(expiresAt.getTime() - 5 * 60 * 1000); // 5 minutes before expiry
+
+			if (now < bufferTime) {
+				return store.googleAccessToken;
+			}
+		}
+
+		// Token expired or not present, need to refresh
+		if (!store.googleRefreshToken) {
+			throw new Error(
+				'Google refresh token not found. Please re-authenticate.',
+			);
+		}
+
+		this.logger.log(
+			`Refreshing Google access token for store ${store.name}`,
+		);
+
+		try {
+			// Import OAuthService dynamically or inject it
+			// For now, we'll do the refresh inline
+			const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+			const clientSecret = this.configService.get<string>(
+				'GOOGLE_CLIENT_SECRET',
+			);
+
+			const response = await fetch(
+				'https://oauth2.googleapis.com/token',
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						refresh_token: store.googleRefreshToken,
+						client_id: clientId,
+						client_secret: clientSecret,
+						grant_type: 'refresh_token',
+					}),
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`Token refresh failed: ${response.statusText}`);
+			}
+
+			const data = await response.json();
+
+			// Save the new access token
+			await this.saveOAuthCredentials(store._id.toString(), 'google', {
+				accessToken: data.access_token,
+				expiresIn: data.expires_in,
+				refreshToken: store.googleRefreshToken, // Keep the same refresh token
+				additionalData: {
+					customerId: store.googleCustomerId,
+				},
+			});
+
+			return data.access_token;
+		} catch (error) {
+			this.logger.error(
+				`Failed to refresh Google token: ${(error as any).message}`,
+			);
+			throw new Error(
+				'Failed to refresh Google access token. Please re-authenticate.',
+			);
+		}
 	}
 
 	canAccessStore(user: any, storeId: string): boolean {

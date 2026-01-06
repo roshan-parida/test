@@ -22,10 +22,19 @@ export interface TokenResponse {
 	additionalData?: any;
 }
 
+export interface GoogleCustomer {
+	id: string;
+	descriptiveName: string;
+	currencyCode: string;
+	timeZone: string;
+	resourceName: string;
+}
+
 @Injectable()
 export class OAuthService {
 	private readonly logger = new Logger(OAuthService.name);
 	private readonly stateStore = new Map<string, OAuthState>();
+	private readonly googleAdsApiVersion = 'v22';
 
 	constructor(
 		private readonly configService: ConfigService,
@@ -302,7 +311,9 @@ export class OAuthService {
 	getGoogleAuthUrl(userId: string, storeId?: string): string {
 		const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
 		const redirectUri = `${this.configService.get<string>('BACKEND_URL')}/api/oauth/google/callback`;
-		const scopes = this.configService.get<string>('GOOGLE_SCOPES') || '';
+		const scopes =
+			this.configService.get<string>('GOOGLE_SCOPES') ||
+			'https://www.googleapis.com/auth/adwords';
 		const state = this.generateState({
 			userId,
 			storeId,
@@ -317,7 +328,11 @@ export class OAuthService {
 	async exchangeGoogleCode(
 		code: string,
 		state: string,
-	): Promise<{ token: TokenResponse; state: OAuthState; customers: any[] }> {
+	): Promise<{
+		token: TokenResponse;
+		state: OAuthState;
+		customers: GoogleCustomer[];
+	}> {
 		try {
 			// Verify state
 			const stateData = this.verifyState(state);
@@ -330,6 +345,15 @@ export class OAuthService {
 				'GOOGLE_CLIENT_SECRET',
 			);
 			const redirectUri = `${this.configService.get<string>('BACKEND_URL')}/api/oauth/google/callback`;
+			const developerToken = this.configService.get<string>(
+				'GOOGLE_ADS_DEVELOPER_TOKEN',
+			);
+
+			if (!developerToken) {
+				throw new BadRequestException(
+					'Google Ads developer token is not configured',
+				);
+			}
 
 			// Exchange code for tokens
 			const tokenResponse = await firstValueFrom(
@@ -345,17 +369,20 @@ export class OAuthService {
 			const { access_token, refresh_token, expires_in } =
 				tokenResponse.data;
 
-			// Fetch accessible customer accounts (Google Ads accounts)
-			// Note: This requires Google Ads API setup
-			const customers: any[] = [];
+			// Fetch accessible customer accounts using Google Ads API
+			const customers = await this.fetchGoogleAdsCustomers(
+				access_token,
+				developerToken,
+			);
 
 			await this.auditService.log({
-				action: AuditAction.FACEBOOK_SYNC_STARTED,
+				action: AuditAction.GOOGLE_SYNC_STARTED,
 				status: AuditStatus.SUCCESS,
 				userId: stateData.userId,
 				metadata: {
 					provider: 'google',
 					hasRefreshToken: !!refresh_token,
+					customersFound: customers.length,
 				},
 			});
 
@@ -374,8 +401,97 @@ export class OAuthService {
 		}
 	}
 
-	// ==================== TOKEN REFRESH ====================
+	private async fetchGoogleAdsCustomers(
+		accessToken: string,
+		developerToken: string,
+	): Promise<GoogleCustomer[]> {
+		try {
+			this.logger.log('Attempting to fetch Google Ads customers...');
 
+			const response = await firstValueFrom(
+				this.httpService.get(
+					`https://googleads.googleapis.com/${this.googleAdsApiVersion}/customers:listAccessibleCustomers`,
+					{
+						headers: {
+							Authorization: `Bearer ${accessToken}`,
+							'developer-token': developerToken,
+						},
+					},
+				),
+			);
+
+			const resourceNames = response.data.resourceNames || [];
+
+			if (resourceNames.length === 0) {
+				this.logger.warn('No accessible Google Ads customers found');
+				return [];
+			}
+
+			this.logger.log(
+				`Found ${resourceNames.length} accessible customers`,
+			);
+
+			// Extract customer IDs
+			const customerIds = resourceNames.map(
+				(rn: string) => rn.split('/')[1],
+			);
+
+			const customers: GoogleCustomer[] = await Promise.all(
+				customerIds.map(async (customerId: string) => {
+					try {
+						const detailResponse = await firstValueFrom(
+							this.httpService.post(
+								`https://googleads.googleapis.com/${this.googleAdsApiVersion}/customers/${customerId}/googleAds:search`,
+								{
+									query: `SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.time_zone FROM customer WHERE customer.id = ${customerId}`,
+								},
+								{
+									headers: {
+										Authorization: `Bearer ${accessToken}`,
+										'developer-token': developerToken,
+										'Content-Type': 'application/json',
+									},
+								},
+							),
+						);
+
+						const customerData =
+							detailResponse.data.results?.[0]?.customer;
+
+						return {
+							id: customerId,
+							descriptiveName:
+								customerData?.descriptiveName ||
+								`Account ${customerId}`,
+							currencyCode: customerData?.currencyCode || 'USD',
+							timeZone: customerData?.timeZone || 'UTC',
+							resourceName: `customers/${customerId}`,
+						};
+					} catch (detailError) {
+						return {
+							id: customerId,
+							descriptiveName: `Account ${customerId}`,
+							currencyCode: 'USD',
+							timeZone: 'UTC',
+							resourceName: `customers/${customerId}`,
+						};
+					}
+				}),
+			);
+
+			this.logger.log(
+				`Successfully processed ${customers.length} Google Ads accounts`,
+			);
+			return customers;
+		} catch (error) {
+			this.logger.error(
+				`Failed to fetch Google Ads customers: ${(error as any).message}`,
+			);
+			return [];
+		}
+	}
+
+	// ==================== TOKEN REFRESH ====================
 	async refreshGoogleToken(refreshToken: string): Promise<TokenResponse> {
 		try {
 			const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
