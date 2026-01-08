@@ -94,7 +94,7 @@ export class OAuthService {
 			userId,
 			storeId,
 			provider: 'shopify',
-			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/stores`,
+			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/oauth/callback`,
 			timestamp: Date.now(),
 		});
 
@@ -213,7 +213,7 @@ export class OAuthService {
 			userId,
 			storeId,
 			provider: 'meta',
-			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/stores`,
+			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/oauth/callback`,
 			timestamp: Date.now(),
 		});
 
@@ -318,7 +318,7 @@ export class OAuthService {
 			userId,
 			storeId,
 			provider: 'google',
-			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/stores`,
+			returnUrl: `${this.configService.get<string>('FRONTEND_URL')}/oauth/callback`,
 			timestamp: Date.now(),
 		});
 
