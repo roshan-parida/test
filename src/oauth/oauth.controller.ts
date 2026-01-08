@@ -7,6 +7,9 @@ import {
 	Req,
 	Logger,
 	BadRequestException,
+	Body,
+	Param,
+	Post,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import {
@@ -15,6 +18,8 @@ import {
 	ApiResponse,
 	ApiBearerAuth,
 	ApiQuery,
+	ApiBody,
+	ApiParam,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -22,6 +27,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums/user-role.enum';
 import { OAuthService } from './oauth.service';
 import { StoresService } from '../stores/stores.service';
+import { StoreAccessGuard } from 'src/auth/guards/store-access.guard';
 
 @ApiTags('OAuth')
 @Controller('oauth')
@@ -224,5 +230,61 @@ export class OAuthController {
 			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/stores?oauth=google&status=error&message=${encodeURIComponent((error as any).message)}`;
 			return res.redirect(errorUrl);
 		}
+	}
+
+	@Post(':storeId/oauth-credentials/:provider')
+	@Roles(UserRole.ADMIN, UserRole.MANAGER)
+	@UseGuards(StoreAccessGuard)
+	@ApiOperation({
+		summary: 'Save OAuth credentials after provider selection',
+	})
+	@ApiParam({ name: 'storeId', description: 'Store ID' })
+	@ApiParam({ name: 'provider', enum: ['shopify', 'meta', 'google'] })
+	@ApiBody({
+		schema: {
+			type: 'object',
+			properties: {
+				accessToken: { type: 'string' },
+				refreshToken: { type: 'string' },
+				expiresIn: { type: 'number' },
+				accountId: {
+					type: 'string',
+					description: 'FB account ID or Google customer ID',
+				},
+			},
+			required: ['accessToken'],
+		},
+	})
+	async saveOAuthCredentials(
+		@Param('storeId') storeId: string,
+		@Param('provider') provider: 'shopify' | 'meta' | 'google',
+		@Body('accessToken') accessToken: string,
+		@Body('refreshToken') refreshToken?: string,
+		@Body('expiresIn') expiresIn?: number,
+		@Body('accountId') accountId?: string,
+	) {
+		const credentials: any = {
+			accessToken,
+			refreshToken,
+			expiresIn,
+		};
+
+		if (provider === 'meta' && accountId) {
+			credentials.additionalData = { accountId };
+		} else if (provider === 'google' && accountId) {
+			credentials.additionalData = { customerId: accountId };
+		}
+
+		const store = await this.storesService.saveOAuthCredentials(
+			storeId,
+			provider,
+			credentials,
+		);
+
+		return {
+			message: `${provider} credentials saved successfully`,
+			storeId: store._id,
+			storeName: store.name,
+		};
 	}
 }
