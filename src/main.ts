@@ -40,7 +40,7 @@ async function bootstrap() {
 			callback: (err: Error | null, allow?: boolean) => void,
 		) => {
 			const allowedOrigins = [
-				'http://localhost:3000',
+				'http://localhost:10000',
 				process.env.FRONTEND_URL,
 			].filter(Boolean);
 

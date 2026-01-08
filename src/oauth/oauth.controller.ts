@@ -234,7 +234,8 @@ export class OAuthController {
 
 	@Post(':storeId/oauth-credentials/:provider')
 	@Roles(UserRole.ADMIN, UserRole.MANAGER)
-	@UseGuards(StoreAccessGuard)
+	@UseGuards(JwtAuthGuard, StoreAccessGuard)
+	@ApiBearerAuth('JWT-auth')
 	@ApiOperation({
 		summary: 'Save OAuth credentials after provider selection',
 	})
