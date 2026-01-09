@@ -108,13 +108,10 @@ export class OAuthService {
 		shopDomain: string,
 		hmac: string,
 		state: string,
+		allParams: any,
 	): Promise<{ token: TokenResponse; state: OAuthState }> {
 		try {
-			// Verify HMAC
-			const verifiedHmac = this.verifyShopifyHmac(
-				{ code, shop: shopDomain, state },
-				hmac,
-			);
+			const verifiedHmac = this.verifyShopifyHmac(allParams, hmac);
 			if (!verifiedHmac) {
 				throw new BadRequestException('Invalid HMAC signature');
 			}

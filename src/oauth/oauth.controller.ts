@@ -81,24 +81,19 @@ export class OAuthController {
 	@ApiQuery({ name: 'shop', required: true })
 	@ApiQuery({ name: 'hmac', required: true })
 	@ApiQuery({ name: 'state', required: true })
-	async shopifyCallback(
-		@Query('code') code: string,
-		@Query('shop') shop: string,
-		@Query('hmac') hmac: string,
-		@Query('state') state: string,
-		@Res() res: Response,
-	) {
+	async shopifyCallback(@Query() query: any, @Res() res: Response) {
 		try {
+			const { code, shop, hmac, state } = query;
 			const result = await this.oauthService.exchangeShopifyCode(
 				code,
 				shop,
 				hmac,
 				state,
+				query,
 			);
 
 			// Update or create store with the token
 			if (result.state.storeId) {
-				// Update existing store
 				await this.storesService.update(result.state.storeId, {
 					shopifyToken: result.token.accessToken,
 					shopifyStoreUrl: shop,
