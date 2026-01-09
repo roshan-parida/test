@@ -115,7 +115,7 @@ export class OAuthController {
 			this.logger.error(
 				`Shopify callback error: ${(error as any).message}`,
 			);
-			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/stores?oauth=shopify&status=error&message=${encodeURIComponent((error as any).message)}`;
+			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/oauth/callback?oauth=shopify&status=error&message=${encodeURIComponent((error as any).message)}`;
 			return res.redirect(errorUrl);
 		}
 	}
@@ -169,7 +169,7 @@ export class OAuthController {
 			return res.redirect(redirectUrl);
 		} catch (error) {
 			this.logger.error(`Meta callback error: ${(error as any).message}`);
-			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/stores?oauth=meta&status=error&message=${encodeURIComponent((error as any).message)}`;
+			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/oauth/callback?oauth=meta&status=error&message=${encodeURIComponent((error as any).message)}`;
 			return res.redirect(errorUrl);
 		}
 	}
@@ -227,7 +227,7 @@ export class OAuthController {
 			this.logger.error(
 				`Google callback error: ${(error as any).message}`,
 			);
-			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/stores?oauth=google&status=error&message=${encodeURIComponent((error as any).message)}`;
+			const errorUrl = `${this.oauthService['configService'].get<string>('FRONTEND_URL')}/oauth/callback?oauth=google&status=error&message=${encodeURIComponent((error as any).message)}`;
 			return res.redirect(errorUrl);
 		}
 	}
