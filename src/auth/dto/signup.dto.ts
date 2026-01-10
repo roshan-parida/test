@@ -5,6 +5,7 @@ import {
 	IsNotEmpty,
 	IsUrl,
 	IsOptional,
+	ValidateIf,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -45,8 +46,9 @@ export class SignupDto {
 		description: 'Profile image URL',
 		required: false,
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.profileImage !== null && o.profileImage !== '')
+	@IsUrl()
 	profileImage?: string;
 
 	@ApiProperty({ example: 'My Store', description: 'Store name' })
@@ -58,8 +60,9 @@ export class SignupDto {
 		example: 'mystore.myshopify.com',
 		description: 'Shopify store URL',
 	})
-	@IsUrl()
 	@IsNotEmpty()
+	@ValidateIf((o) => o.storeUrl !== null && o.storeUrl !== '')
+	@IsUrl()
 	storeUrl: string;
 
 	@ApiProperty({
@@ -67,7 +70,8 @@ export class SignupDto {
 		description: 'Store logo URL',
 		required: false,
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.storeLogo !== null && o.storeLogo !== '')
+	@IsUrl()
 	storeLogo?: string;
 }

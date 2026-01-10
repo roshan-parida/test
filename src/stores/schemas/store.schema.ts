@@ -11,7 +11,7 @@ export class Store extends Document {
 	storeLogo?: string;
 
 	// Shopify OAuth
-	@Prop({ required: true })
+	@Prop({ required: false })
 	shopifyToken: string;
 
 	@Prop({ required: true })
@@ -21,10 +21,10 @@ export class Store extends Document {
 	shopifyTokenExpiresAt?: Date;
 
 	// Facebook/Meta OAuth
-	@Prop({ required: true })
+	@Prop({ required: false })
 	fbAdSpendToken: string;
 
-	@Prop({ required: true })
+	@Prop({ required: false })
 	fbAccountId: string;
 
 	@Prop({ required: false })

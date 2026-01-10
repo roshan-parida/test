@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
+import {
+	IsOptional,
+	IsString,
+	IsUrl,
+	MinLength,
+	ValidateIf,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AcceptInvitationDto {
@@ -30,7 +36,8 @@ export class AcceptInvitationDto {
 		description: 'Profile image URL (optional)',
 		required: false,
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.profileImage !== null && o.profileImage !== '')
+	@IsUrl()
 	profileImage?: string;
 }

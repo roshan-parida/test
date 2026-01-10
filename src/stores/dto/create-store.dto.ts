@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsUrl, IsOptional } from 'class-validator';
+import {
+	IsString,
+	IsNotEmpty,
+	IsUrl,
+	IsOptional,
+	ValidateIf,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateStoreDto {
@@ -12,8 +18,9 @@ export class CreateStoreDto {
 		description: 'Store logo URL',
 		required: false,
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.storeLogo !== null && o.storeLogo !== '')
+	@IsUrl()
 	storeLogo?: string;
 
 	@ApiProperty({
@@ -29,8 +36,9 @@ export class CreateStoreDto {
 		example: 'https://store.myshopify.com',
 		description: 'Shopify store URL',
 	})
-	@IsUrl()
 	@IsNotEmpty()
+	@ValidateIf((o) => o.shopifyStoreUrl !== null && o.shopifyStoreUrl !== '')
+	@IsUrl()
 	shopifyStoreUrl: string;
 
 	@ApiProperty({

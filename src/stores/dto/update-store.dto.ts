@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUrl } from 'class-validator';
+import { IsString, IsOptional, IsUrl, ValidateIf } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateStoreDto {
@@ -11,8 +11,9 @@ export class UpdateStoreDto {
 		example: 'https://example.com/logo.png',
 		description: 'Store logo URL',
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.storeLogo !== null && o.storeLogo !== '')
+	@IsUrl()
 	storeLogo?: string;
 
 	@ApiPropertyOptional({
@@ -27,8 +28,9 @@ export class UpdateStoreDto {
 		example: 'https://store.myshopify.com',
 		description: 'Shopify store URL',
 	})
-	@IsUrl()
 	@IsOptional()
+	@ValidateIf((o) => o.shopifyStoreUrl !== null && o.shopifyStoreUrl !== '')
+	@IsUrl()
 	shopifyStoreUrl?: string;
 
 	@ApiPropertyOptional({
